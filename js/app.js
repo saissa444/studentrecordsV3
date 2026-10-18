@@ -721,12 +721,12 @@
       box.type = "checkbox"; box.dataset.recordIndex = i;
       box.setAttribute("aria-label", "勾選第 " + (i + 1) + " 筆：" + (r.female || "") + " " + r.name);
       box.addEventListener("change", () => { if (pBulk) pCancelEditing(); if (box.checked) pSelected.add(r); else pSelected.delete(r); pUpdateSelection(); });
-      selectCell.append(box); tr.append(selectCell);
-      const cohortCell = document.createElement("td"); cohortCell.append(cohortTag(r.cohort)); tr.append(cohortCell);
-      [[r.female, "nowrap"], [r.team, "nowrap"], [r.name, "nowrap"], [r.detail || "", "wrap"], [r.school, "nowrap"], [r.kind, "nowrap"], [r.score.toFixed(1), "nowrap"], [r.reason, "wrap"]].forEach(([text, cls]) => {
-        const td = document.createElement("td"); td.className = cls; td.textContent = text; tr.appendChild(td);
+      selectCell.className = "cell-select"; selectCell.append(box); tr.append(selectCell);
+      const cohortCell = document.createElement("td"); cohortCell.className = "cell-cohort"; cohortCell.append(cohortTag(r.cohort)); tr.append(cohortCell);
+      [["女生隊號", r.female, "nowrap"], ["建制隊號", r.team, "nowrap"], ["姓名", r.name, "nowrap cell-name"], ["說明", r.detail || "", "wrap"], ["學籍號碼", r.school, "nowrap"], ["類型", r.kind, "nowrap"], ["分數", r.score.toFixed(1), "nowrap"], ["事由", r.reason, "wrap"]].forEach(([label, text, cls]) => {
+        const td = document.createElement("td"); td.className = cls; td.dataset.label = label; td.textContent = text; tr.appendChild(td);
       });
-      const td = document.createElement("td"); td.className = "nowrap";
+      const td = document.createElement("td"); td.className = "nowrap cell-actions";
       const edit = document.createElement("button"), del = document.createElement("button");
       edit.type = "button"; edit.textContent = "編輯"; edit.dataset.editIndex = i;
       edit.addEventListener("click", () => { if (pSelected.size > 1 && pSelected.has(r)) pStartBulkEditing(i); else pStartEditing(i); });
@@ -806,6 +806,7 @@
     if (!$("rAdjustReason").value) $("rAdjustAmount").value = "";
   });
 
+  const REWARD_LABELS = {school: "學號", name: "姓名", article: "條", clause: "款", item: "目", reason: "獎懲事由", amount: "額度", adjustReason: "加重減輕事由", adjustAmount: "加重減輕額度"};
   function rReport(message, kind) { status("rResult", message, kind); }
 
   $("rAdd").addEventListener("click", () => {
@@ -852,19 +853,20 @@
       checkbox.checked = rSelectedRows.has(index);
       checkbox.setAttribute("aria-label", "選取 " + record.name + "（" + record.school + "）");
       checkbox.addEventListener("change", () => { if (checkbox.checked) rSelectedRows.add(index); else rSelectedRows.delete(index); row.classList.toggle("selected-record", checkbox.checked); rUpdateSelection(); });
-      label.append(checkbox); selectCell.append(label); row.append(selectCell);
+      label.append(checkbox); selectCell.className = "cell-select"; selectCell.append(label); row.append(selectCell);
       row.classList.toggle("selected-record", checkbox.checked);
-      const actionCell = document.createElement("td"); actionCell.className = "nowrap";
+      const actionCell = document.createElement("td"); actionCell.className = "nowrap cell-actions";
       const edit = document.createElement("button"), remove = document.createElement("button");
       edit.type = "button"; edit.className = "secondary"; edit.textContent = "編輯"; edit.disabled = !rTpl;
       edit.addEventListener("click", () => rOpenEditor([index]));
       remove.type = "button"; remove.className = "danger"; remove.textContent = "刪除";
       remove.addEventListener("click", () => rDelete(index));
       actionCell.append(edit, remove); row.append(actionCell);
-      const cohortCell = document.createElement("td"); cohortCell.append(cohortTag(record.cohort)); row.append(cohortCell);
+      const cohortCell = document.createElement("td"); cohortCell.className = "cell-cohort"; cohortCell.append(cohortTag(record.cohort)); row.append(cohortCell);
       core.rewardFields.forEach(field => {
         const cell = document.createElement("td");
-        cell.className = field === "reason" || field === "adjustReason" ? "wrap" : "nowrap";
+        cell.className = (field === "reason" || field === "adjustReason" ? "wrap" : "nowrap") + (field === "name" ? " cell-name" : "");
+        cell.dataset.label = REWARD_LABELS[field];
         cell.textContent = record[field] || "";
         row.append(cell);
       });
