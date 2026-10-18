@@ -162,6 +162,7 @@ let rDupBefore = 0;
   await editing.locator("select.inline-score").selectOption("0.3");
   await editing.locator("button.inline-save").click();
   assert.equal(await page.locator("#pRecords > tr.inline-editing").count(), 0);
+  if (process.env.MOBILE) assert.equal(await page.locator("#pRecords > tr.expanded").count(), 0, "手機：儲存後卡片應收起");
   assert.match(await page.textContent("#pSelected"), /已勾選 0 筆/);
   assert.equal(await page.locator("#pRecords input[type=checkbox]:checked").count(), 0);
   // 剛修改的 2 筆維持淺藍底；查看操作不取消，下一個操作才取消

@@ -814,6 +814,7 @@
   }
   function pCancelInline(rerender = true) {
     if (!pInline) return;
+    if (!pInline.wasExpanded) expanded.p.delete(pInline.anchor); // 取消時恢復編輯前的展開狀態
     pInline = null;
     if (rerender) pRenderRecords();
   }
@@ -821,7 +822,7 @@
     if (!pTpl) { alert("請先到「名冊與設定」匯入加扣分範本才能編輯。"); return; }
     if (pInline) pCancelInline();
     const targets = pSelected.size > 1 && pSelected.has(r) ? pRecords.filter(x => pSelected.has(x)) : [r];
-    pInline = {anchor: r, targets, original: {detail: r.detail || "", kind: r.kind, score: r.score.toFixed(1), key: r.cat + "\u0001" + r.reason}};
+    pInline = {anchor: r, targets, wasExpanded: expanded.p.has(r), original: {detail: r.detail || "", kind: r.kind, score: r.score.toFixed(1), key: r.cat + "\u0001" + r.reason}};
     const tr = $("pRecords").querySelector('tr[data-index="' + pRecords.indexOf(r) + '"]');
     if (!tr) return;
     tr.classList.add("inline-editing", "expanded"); expanded.p.add(r);
@@ -878,6 +879,7 @@
     targets.forEach(t => Object.assign(t, patch));
     pSelected.clear(); // 儲存後取消勾選
     justEdited.p = new Set(targets);
+    targets.forEach(t => expanded.p.delete(t)); // 手機：儲存後卡片收起
     pInline = null;
     pRenderRecords(); saveDrafts();
     $("pCount").textContent += "（已儲存 " + targets.length + " 筆修改，以淺藍色標示）";
