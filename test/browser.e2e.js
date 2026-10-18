@@ -214,7 +214,21 @@ let rDupBefore = 0;
   step("連續範圍勾選：Shift＋點選、按住拖曳");
   const box = n => "#pRecords > tr:nth-child(" + n + ") td.cell-select input[type=checkbox]";
   assert.match(await page.textContent("#pSelected"), /已勾選 0 筆/);
+  assert.equal(await page.isVisible("#selBar"), false);
   await page.click(box(1));
+  // 只勾 1 筆也會出現懸浮列（編輯／刪除／取消勾選）
+  assert.equal(await page.isVisible("#selBar"), true);
+  assert.match(await page.textContent("#selBarCount"), /已勾選 1 筆/);
+  assert.equal(await page.isVisible("#selBarEdit"), true);
+  // 懸浮列在最後勾選那一筆的正下方，且不遮住下一筆的勾選框
+  await page.waitForTimeout(80);
+  const rowBox = await page.locator("#pRecords > tr:nth-child(1)").boundingBox(), barBox = await page.locator("#selBar").boundingBox();
+  const nextCheck = await page.locator(box(2)).boundingBox();
+  if (await page.$eval("#selBar", el => el.classList.contains("anchored"))) {
+    assert.ok(Math.abs(barBox.y - (rowBox.y + rowBox.height)) < 12, "懸浮列不在勾選列正下方");
+    assert.ok(barBox.x >= nextCheck.x + nextCheck.width - 1, "懸浮列遮住下一筆的勾選框");
+  }
+  assert.equal(await page.isVisible("#selBarDelete"), true);
   await page.click(box(3), {modifiers: ["Shift"]});
   assert.match(await page.textContent("#pSelected"), /已勾選 3 筆/);
   await page.click(box(3));                              // 取消第 3 筆，並以它為起點

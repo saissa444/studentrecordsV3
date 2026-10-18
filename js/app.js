@@ -272,6 +272,7 @@
         }
       }
       rangeAnchor[prefix] = Number(tr.dataset.index);
+      lastTouched[prefix] = Number(tr.dataset.index); // 懸浮列跟著最後勾選的那一筆
     }, true);
     // 按住勾選欄拖曳
     body.addEventListener("pointerdown", event => {
@@ -291,6 +292,7 @@
     if (!rangeDrag.moved) { rangeDrag.moved = true; document.body.classList.add("range-selecting"); rangeAutoScroll(); }
     const api = rangeApi[rangeDrag.prefix], a = rows.indexOf(rangeDrag.start), b = rows.indexOf(tr);
     if (a < 0) return true;
+    lastTouched[rangeDrag.prefix] = Number(tr.dataset.index);
     const lo = Math.min(a, b), hi = Math.max(a, b);
     rows.forEach((row, i) => api.set(row, i >= lo && i <= hi ? rangeDrag.target : rangeDrag.snapshot.get(row)));
     api.done();
@@ -346,9 +348,40 @@
   }
   function updateSelBar() {
     const tab = settings.tab, n = tab === "points" ? pSelected.size : tab === "reward" ? rSelectedRows.size : 0;
-    $("selBar").hidden = n < 2 || $("app").hidden;
+    $("selBar").hidden = n < 1 || $("app").hidden; // 勾選 1 筆以上就顯示
     $("selBarCount").textContent = "已勾選 " + n + " 筆";
     $("selBarEdit").disabled = tab === "points" ? !pTpl : !rTpl;
+    positionSelBar();
+  }
+  /* 懸浮列放在「最後勾選那一筆」的正下方，從勾選框右側開始，不遮住下一筆的勾選框。
+     沒有最後一筆（例如全選）或那一筆已捲出畫面時，改回固定在畫面底部。 */
+  const lastTouched = {p: null, r: null};
+  let selBarFrame = 0;
+  function positionSelBar() {
+    const bar = $("selBar");
+    const fallback = () => { bar.classList.remove("anchored"); bar.style.top = bar.style.left = bar.style.maxWidth = ""; };
+    if (bar.hidden) return fallback();
+    const tab = settings.tab, prefix = tab === "points" ? "p" : tab === "reward" ? "r" : null;
+    if (!prefix || lastTouched[prefix] === null || $("tab-" + tab).hidden) return fallback();
+    const row = rangeApi[prefix].body().querySelector('tr[data-index="' + lastTouched[prefix] + '"]');
+    if (!row || row.hidden || !rangeApi[prefix].get(row)) return fallback();
+    const rect = row.getBoundingClientRect(), wrap = row.closest(".tablewrap").getBoundingClientRect();
+    const check = row.querySelector("td.cell-select").getBoundingClientRect();
+    const barHeight = bar.offsetHeight || 52, cohortBar = $("cohortBar").getBoundingClientRect().bottom;
+    // 那一筆不在畫面內（或下方空間不夠）時，固定在畫面底部
+    if (rect.bottom < cohortBar || rect.bottom + barHeight + 8 > window.innerHeight) return fallback();
+    const left = Math.max(check.right, wrap.left + 40);
+    bar.classList.add("anchored");
+    bar.style.top = (rect.bottom + window.scrollY + 4) + "px";
+    bar.style.left = (left + window.scrollX) + "px";
+    bar.style.maxWidth = Math.min(window.innerWidth - left - 6, Math.max(300, wrap.right - left)) + "px";
+  }
+  const scheduleSelBar = () => { cancelAnimationFrame(selBarFrame); selBarFrame = requestAnimationFrame(positionSelBar); };
+  window.addEventListener("scroll", scheduleSelBar, {passive: true});
+  window.addEventListener("resize", scheduleSelBar);
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(scheduleSelBar);
+    ro.observe($("pRecords")); ro.observe($("rBody"));
   }
   // 懸浮列上的「編輯」「刪除」：一次處理全部勾選的紀錄（手機上不用再展開卡片找按鈕）
   $("selBarEdit").addEventListener("click", () => {
@@ -783,6 +816,7 @@
     });
   }
   function pSelectAll(event) {
+    lastTouched.p = null; // 全選時沒有「最後一筆」，懸浮列放在畫面底部
     if (pInline && pInline.targets.length > 1) pCancelInline();
     // 有篩選時，全選只作用在目前看得到的紀錄
     pRecords.filter(r => matchesFilter("p", r)).forEach(r => { if (event.target.checked) pSelected.add(r); else pSelected.delete(r); });
@@ -1218,6 +1252,7 @@
   }
   ["rSelectAll"].forEach(id => $(id).addEventListener("change", () => {
     const checked = $(id).checked;
+    lastTouched.r = null;
     rRecords.forEach((r, i) => { if (!matchesFilter("r", r)) return; if (checked) rSelectedRows.add(i); else rSelectedRows.delete(i); });
     rRender();
   }));
