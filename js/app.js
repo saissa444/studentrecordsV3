@@ -805,11 +805,11 @@
     for (const r of Array.from(pSelected)) if (!pRecords.includes(r)) pSelected.delete(r);
     const n = pSelected.size, visible = pRecords.filter(r => matchesFilter("p", r));
     const all = visible.length > 0 && visible.every(r => pSelected.has(r)), some = !all && visible.some(r => pSelected.has(r));
-    $("pSelected").textContent = "已勾選 " + n + " 筆";
+    $("pSelected").textContent = $("pSelectedBottom").textContent = "已勾選 " + n + " 筆";
     setBulkHint("p", n);
-    $("pSelectAll").disabled = pRecords.length === 0;
-    $("pSelectAll").checked = all;
-    $("pSelectAll").indeterminate = some;
+    ["pSelectAll", "pSelectAllBottom"].forEach(id => {
+      $(id).disabled = pRecords.length === 0; $(id).checked = all; $(id).indeterminate = some;
+    });
     // 勾選多筆時，勾選列上的按鈕會一次處理全部勾選的紀錄（按鈕文字不變，以提示說明）
     $("pRecords").querySelectorAll("button[data-edit-index]").forEach(button => {
       button.title = n > 1 && pSelected.has(pRecords[Number(button.dataset.editIndex)]) ? "將一次編輯勾選的 " + n + " 筆紀錄" : "";
@@ -831,6 +831,7 @@
     pUpdateSelection();
   }
   $("pSelectAll").addEventListener("change", pSelectAll);
+  $("pSelectAllBottom").addEventListener("change", pSelectAll);
 
   function pDeleteSelected() {
     const targets = new Set(pRecords.filter(r => pSelected.has(r)));
@@ -1190,11 +1191,11 @@
     const n = rSelectedRows.size, total = rRecords.length;
     const visible = rRecords.map((r, i) => i).filter(i => matchesFilter("r", rRecords[i]));
     const allVisible = visible.length > 0 && visible.every(i => rSelectedRows.has(i)), someVisible = !allVisible && visible.some(i => rSelectedRows.has(i));
-    $("rSelected").textContent = "已勾選 " + n + " / " + total + " 筆";
+    $("rSelected").textContent = $("rSelectedBottom").textContent = "已勾選 " + n + " / " + total + " 筆";
     setBulkHint("r", n);
-    $("rSelectAll").disabled = !total;
-    $("rSelectAll").checked = allVisible;
-    $("rSelectAll").indeterminate = someVisible;
+    ["rSelectAll", "rSelectAllBottom"].forEach(id => {
+      $(id).disabled = !total; $(id).checked = allVisible; $(id).indeterminate = someVisible;
+    });
     $("rBody").querySelectorAll("button[data-edit-index]").forEach(button => {
       button.title = n > 1 && rSelectedRows.has(Number(button.dataset.editIndex)) ? "將一次編輯勾選的 " + n + " 筆紀錄" : "";
     });
@@ -1263,7 +1264,7 @@
     rRender(); saveDrafts();
     rReport(rRecords.length ? "已刪除 1 筆紀錄；目前共 " + rRecords.length + " 筆。" : "已刪除最後一筆紀錄；可再次批次新增。", "ok");
   }
-  ["rSelectAll"].forEach(id => $(id).addEventListener("change", () => {
+  ["rSelectAll", "rSelectAllBottom"].forEach(id => $(id).addEventListener("change", () => {
     const checked = $(id).checked;
     lastTouched.r = null;
     rRecords.forEach((r, i) => { if (!matchesFilter("r", r)) return; if (checked) rSelectedRows.add(i); else rSelectedRows.delete(i); });

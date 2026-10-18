@@ -249,6 +249,12 @@ let rDupBefore = 0;
   // 獎懲表格也支援 Shift（此時尚無獎懲紀錄，僅確認不出錯）
   await page.click("#pSelectAll"); await page.click("#pSelectAll");
   assert.match(await page.textContent("#pSelected"), /已勾選 0 筆/);
+  // 最下方的全選
+  await page.click("#pSelectAllBottom");
+  assert.match(await page.textContent("#pSelectedBottom"), /已勾選 3 筆/);
+  assert.equal(await page.isChecked("#pSelectAll"), true);
+  await page.click("#pSelectAllBottom");
+  assert.match(await page.textContent("#pSelected"), /已勾選 0 筆/);
 
   step("加扣分：在列上直接編輯單筆（說明、類型、事由）與取消");
   const row3 = "#pRecords > tr:nth-child(3)";
@@ -399,6 +405,13 @@ let rDupBefore = 0;
   assert.match(await page.textContent("#rResult"), /已刪除 2 筆/);
   assert.equal(await page.isVisible("#selBar"), false);
   assert.match(await page.$eval("#rBody > tr:nth-child(2)", tr => tr.textContent), /改過的事由/);
+  assert.match(await page.textContent("#rSelected"), /已勾選 0 \//);
+  // 最下方的全選
+  await page.click("#rSelectAllBottom");
+  const rTotal = await page.locator("#rBody > tr").count();
+  assert.match(await page.textContent("#rSelectedBottom"), new RegExp("已勾選 " + rTotal + " / " + rTotal));
+  assert.equal(await page.isChecked("#rSelectAll"), true);
+  await page.click("#rSelectAllBottom");
   assert.match(await page.textContent("#rSelected"), /已勾選 0 \//);
   const rFile = path.join(OUT, "reward.xlsx"); await dl2.saveAs(rFile);
 
