@@ -45,6 +45,15 @@ let rDupBefore = 0;
   assert.match(await page.textContent("#rosterPendingWarn"), /可能是同一期/);
   await page.click("#rosterCancel");
 
+  step("尚未匯入獎懲範本時按「批次新增至預覽」→ 顯示原因");
+  await page.click("#tabBtn-reward");
+  assert.equal(await page.isDisabled("#rAdd"), false);
+  await page.fill("#rIds", "002");
+  await page.click("#rAdd");
+  assert.match(await page.textContent("#rResult"), /請先匯入獎懲範本/);
+  await page.fill("#rIds", "");
+  await page.click("#tabBtn-settings");
+
   step("匯入兩份範本");
   await page.setInputFiles("#pTplFile", path.join(FX, "points_template.xlsx"));
   await page.waitForFunction(() => /✓/.test(document.getElementById("pTplStatus").textContent));
@@ -58,6 +67,9 @@ let rDupBefore = 0;
   step("重新整理 → 直接進入，不需重新匯入");
   await page.reload();
   await page.waitForSelector("#app:not([hidden])");
+  // 迴歸測試：重新開啟後不切換期別，獎懲的「批次新增至預覽」也必須能按
+  await page.click("#tabBtn-reward");
+  assert.equal(await page.isDisabled("#rAdd"), false, "重新開啟後「批次新增至預覽」被停用");
   assert.equal(await page.locator(".cohort-btn").count(), 2);
   assert.match(await page.textContent("#pTplStatus"), /✓/);
   assert.match(await page.textContent("#rTplStatus"), /✓/);

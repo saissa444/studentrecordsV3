@@ -1071,7 +1071,8 @@
   const rSelectedRows = new Set();
   let rEditingRows = [];
 
-  function rRefreshAddState() { $("rAdd").disabled = !rTpl || !activeCohort(); }
+  // 按鈕一律可按；缺名冊或範本時，按下後會以紅字說明缺什麼（避免重新開啟後按鈕停用卻不知原因）
+  function rRefreshAddState() { $("rAdd").disabled = false; }
   function rCheckStudents() { renderCheck($("rCheck"), $("rIds").value, "reward"); }
   $("rIds").addEventListener("input", rCheckStudents);
 
