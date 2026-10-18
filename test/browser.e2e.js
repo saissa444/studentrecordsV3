@@ -198,6 +198,29 @@ let rDupBefore = 0;
     await page.click("#tab-points .view-seg button[data-view=compact]");
   }
 
+  step("連續範圍勾選：Shift＋點選、按住拖曳");
+  const box = n => "#pRecords > tr:nth-child(" + n + ") td.cell-select input[type=checkbox]";
+  assert.match(await page.textContent("#pSelected"), /已勾選 0 筆/);
+  await page.click(box(1));
+  await page.click(box(3), {modifiers: ["Shift"]});
+  assert.match(await page.textContent("#pSelected"), /已勾選 3 筆/);
+  await page.click(box(3));                              // 取消第 3 筆，並以它為起點
+  await page.click(box(1), {modifiers: ["Shift"]});      // Shift 取消到第 1 筆 → 全部取消
+  assert.match(await page.textContent("#pSelected"), /已勾選 0 筆/);
+  const center = async n => { const b = await page.locator("#pRecords > tr:nth-child(" + n + ") td.cell-select").boundingBox(); return [b.x + b.width / 2, b.y + b.height / 2]; };
+  const [x1, y1] = await center(1), [x3, y3] = await center(3);
+  await page.mouse.move(x1, y1); await page.mouse.down();
+  await page.mouse.move(x3, y3, {steps: 8}); await page.mouse.up();
+  assert.match(await page.textContent("#pSelected"), /已勾選 3 筆/);
+  assert.equal(await page.locator("#pRecords input[type=checkbox]:checked").count(), 3);
+  // 從已勾選的列開始拖曳 → 取消
+  const [x2, y2] = await center(2);
+  await page.mouse.move(x2, y2); await page.mouse.down(); await page.mouse.move(x3, y3, {steps: 6}); await page.mouse.up();
+  assert.match(await page.textContent("#pSelected"), /已勾選 1 筆/);
+  // 獎懲表格也支援 Shift（此時尚無獎懲紀錄，僅確認不出錯）
+  await page.click("#pSelectAll"); await page.click("#pSelectAll");
+  assert.match(await page.textContent("#pSelected"), /已勾選 0 筆/);
+
   step("加扣分：在列上直接編輯單筆（說明、類型、事由）與取消");
   const row3 = "#pRecords > tr:nth-child(3)";
   const openEdit = async sel => {
@@ -293,8 +316,8 @@ let rDupBefore = 0;
   await page.click("#rAdd");
   await page.waitForFunction(n => document.querySelectorAll("#rBody > tr").length === n + 2, rDupBefore);
   assert.equal(await page.locator("#rDeleteSelected, #rEditSelected, #rDeleteSelectedBottom").count(), 0);
-  await page.check("#rBody > tr:nth-child(" + (rDupBefore + 1) + ") input[type=checkbox]");
-  await page.check("#rBody > tr:nth-child(" + (rDupBefore + 2) + ") input[type=checkbox]");
+  await page.click("#rBody > tr:nth-child(" + (rDupBefore + 1) + ") input[type=checkbox]");
+  await page.click("#rBody > tr:nth-child(" + (rDupBefore + 2) + ") input[type=checkbox]", {modifiers: ["Shift"]});
   assert.match(await page.textContent("#rSelected"), /已勾選 2 \//);
   const lastRow = "#rBody > tr:nth-child(" + (rDupBefore + 2) + ")";
   if (process.env.MOBILE) await page.click(lastRow + " .cell-summary");

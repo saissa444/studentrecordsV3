@@ -203,6 +203,10 @@ td.cell-summary{display:none}
   .tablewrap.records td.cell-actions button:last-child{margin-right:0}
 }
 /* 加扣分：預覽列內直接編輯 */
+/* 連續勾選：勾選欄可按住拖曳（手機不會因此捲動頁面） */
+.tablewrap.records td.cell-select{touch-action:none;user-select:none;-webkit-user-select:none;cursor:pointer}
+body.range-selecting{user-select:none;-webkit-user-select:none}
+body.range-selecting #selBar,body.range-selecting #toTop{pointer-events:none;opacity:.35}
 tr.inline-editing{background:#fffbea!important;outline:2px solid #d9a400;outline-offset:-2px}
 tr.inline-editing td.cell-actions,tr.inline-editing td.cell-select{background:#fffbea!important}
 tr.edit-target:not(.inline-editing){outline:2px dashed #d9a400;outline-offset:-2px}
@@ -326,7 +330,7 @@ dialog .actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0;marg
         <div class="filter-bar" id="pFilterBar" hidden><select id="pFilterCohort" aria-label="篩選期別"></select><input id="pFilterText" type="search" placeholder="搜尋姓名、隊號、學號" aria-label="搜尋姓名、隊號、學號" autocomplete="off"><button type="button" id="pFilterClear" class="secondary" hidden>清除篩選</button></div>
         <p id="pFilterInfo" class="note" role="status"></p>
       </div>
-      <div id="pBulkTop" class="bulk-tools"><label class="check-label"><input id="pSelectAll" type="checkbox"> 全選</label><span id="pSelected" role="status">已勾選 0 筆</span><span class="note bulk-hint">勾選多筆後，按任一勾選列的「編輯」或「刪除」即可一次處理</span></div>
+      <div id="pBulkTop" class="bulk-tools"><label class="check-label"><input id="pSelectAll" type="checkbox"> 全選</label><span id="pSelected" role="status">已勾選 0 筆</span><span class="note bulk-hint">小技巧：電腦按住 Shift 可連續勾選；手機按住勾選框上下滑動可連續勾選</span></div>
       <div class="tablewrap records"><table>
         <thead><tr><th class="col-select">勾選</th><th class="col-actions">操作</th><th>期別</th><th>女生隊號</th><th>建制隊號</th><th>姓名</th><th>說明</th><th>學籍號碼</th><th>類型</th><th>分數</th><th>事由</th></tr></thead>
         <tbody id="pRecords"></tbody>
@@ -373,7 +377,7 @@ dialog .actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0;marg
         <div class="filter-bar" id="rFilterBar" hidden><select id="rFilterCohort" aria-label="篩選期別"></select><input id="rFilterText" type="search" placeholder="搜尋姓名、隊號、學號" aria-label="搜尋姓名、隊號、學號" autocomplete="off"><button type="button" id="rFilterClear" class="secondary" hidden>清除篩選</button></div>
         <p id="rFilterInfo" class="note" role="status"></p>
       </div>
-      <div class="bulk-tools"><label class="check-label"><input type="checkbox" id="rSelectAll" disabled> 全選</label><span id="rSelected" role="status">已勾選 0 筆</span><span class="note bulk-hint">勾選多筆後，按任一勾選列的「編輯」或「刪除」即可一次處理</span></div>
+      <div class="bulk-tools"><label class="check-label"><input type="checkbox" id="rSelectAll" disabled> 全選</label><span id="rSelected" role="status">已勾選 0 筆</span><span class="note bulk-hint">小技巧：電腦按住 Shift 可連續勾選；手機按住勾選框上下滑動可連續勾選</span></div>
       <div class="tablewrap records"><table>
         <thead><tr><th class="col-select">勾選</th><th class="col-actions">操作</th><th>期別</th><th>學號</th><th>姓名</th><th>條</th><th>款</th><th>目</th><th>獎懲事由</th><th>額度</th><th>加重減輕事由</th><th>加重減輕額度</th></tr></thead>
         <tbody id="rBody"></tbody>
@@ -468,7 +472,7 @@ dialog .actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0;marg
       <p class="note">資料只存在「這台裝置的這個瀏覽器」。換電腦、換瀏覽器或清除瀏覽器網站資料後，需要重新匯入。iPhone 建議用 Safari「加入主畫面」後從主畫面開啟，資料比較不會被系統清掉。</p>
       <button id="wipeAll" type="button" class="solid-danger">清除本機全部資料</button>
     </section>
-    <p class="note" style="text-align:center">版本 2026.10.18p</p>
+    <p class="note" style="text-align:center">版本 2026.10.18q</p>
   </div>
   </main>
 </div>
@@ -519,9 +523,9 @@ dialog .actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0;marg
 })();
 </script>
 <script defer src="./vendor/xlsx.full.min.js?v=0.20.3"></script>
-<script defer src="./js/core.js?v=20261018p"></script>
-<script defer src="./js/store.js?v=20261018p"></script>
-<script defer src="./js/app.js?v=20261018p"></script>
+<script defer src="./js/core.js?v=20261018q"></script>
+<script defer src="./js/store.js?v=20261018q"></script>
+<script defer src="./js/app.js?v=20261018q"></script>
 <script>if ("serviceWorker" in navigator && location.protocol === "https:") window.addEventListener("load", function () { navigator.serviceWorker.register("./sw.js").catch(function () {}); });</script>
 </body>
 </html>

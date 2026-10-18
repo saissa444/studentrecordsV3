@@ -230,6 +230,97 @@
 
   /* ═══════════ 分頁 ═══════════ */
 
+  /* ───────── 連續範圍勾選 ─────────
+     電腦：勾一筆後按住 Shift 再勾另一筆，中間全部套用相同狀態。
+     手機（或滑鼠拖曳）：按住某筆的勾選框上下滑動，滑過的都套用與起點相反的狀態。 */
+  const rangeApi = {
+    p: {
+      body: () => $("pRecords"),
+      get: tr => pSelected.has(pRecords[Number(tr.dataset.index)]),
+      set: (tr, on) => { const r = pRecords[Number(tr.dataset.index)]; if (!r) return; if (on) pSelected.add(r); else pSelected.delete(r); },
+      done: () => { if (pInline && pInline.targets.length > 1) pCancelInline(); pUpdateSelection(); }
+    },
+    r: {
+      body: () => $("rBody"),
+      get: tr => rSelectedRows.has(Number(tr.dataset.index)),
+      set: (tr, on) => {
+        const i = Number(tr.dataset.index); if (!rRecords[i]) return;
+        if (on) rSelectedRows.add(i); else rSelectedRows.delete(i);
+        const box = tr.querySelector("td.cell-select input[type=checkbox]"); if (box) box.checked = on;
+        tr.classList.toggle("selected-record", on);
+      },
+      done: () => rUpdateSelection()
+    }
+  };
+  const rangeAnchor = {p: null, r: null};
+  let rangeDrag = null, suppressBoxClick = false;
+  const visibleRows = prefix => Array.from(rangeApi[prefix].body().children).filter(tr => tr.dataset.index !== undefined && !tr.hidden);
+  ["p", "r"].forEach(prefix => {
+    const api = rangeApi[prefix], body = api.body();
+    // Shift＋點選：在捕獲階段處理（此時勾選框已切換成新狀態）
+    body.addEventListener("click", event => {
+      const box = event.target.closest("td.cell-select input[type=checkbox]");
+      if (!box) return;
+      if (suppressBoxClick) { event.preventDefault(); event.stopPropagation(); return; } // 拖曳結束後的點擊不再切換
+      const tr = box.closest("tr");
+      if (event.shiftKey && rangeAnchor[prefix] !== null) {
+        const rows = visibleRows(prefix);
+        const a = rows.findIndex(row => Number(row.dataset.index) === rangeAnchor[prefix]), b = rows.indexOf(tr);
+        if (a >= 0 && b >= 0) {
+          rows.slice(Math.min(a, b), Math.max(a, b) + 1).forEach(row => api.set(row, box.checked));
+          api.done();
+        }
+      }
+      rangeAnchor[prefix] = Number(tr.dataset.index);
+    }, true);
+    // 按住勾選欄拖曳
+    body.addEventListener("pointerdown", event => {
+      const cell = event.target.closest("td.cell-select");
+      if (!cell || event.button > 0) return;
+      const tr = cell.closest("tr");
+      rangeDrag = {prefix, start: tr, target: !api.get(tr), moved: false, pointerId: event.pointerId,
+        snapshot: new Map(visibleRows(prefix).map(row => [row, api.get(row)]))};
+    });
+  });
+  function rangeDragUpdate(x, y) {
+    const el = document.elementFromPoint(x, y);
+    const tr = el && el.closest("tr");
+    const rows = visibleRows(rangeDrag.prefix);
+    if (!tr || !rows.includes(tr)) return false;
+    if (tr === rangeDrag.start && !rangeDrag.moved) return false;
+    if (!rangeDrag.moved) { rangeDrag.moved = true; document.body.classList.add("range-selecting"); rangeAutoScroll(); }
+    const api = rangeApi[rangeDrag.prefix], a = rows.indexOf(rangeDrag.start), b = rows.indexOf(tr);
+    if (a < 0) return true;
+    const lo = Math.min(a, b), hi = Math.max(a, b);
+    rows.forEach((row, i) => api.set(row, i >= lo && i <= hi ? rangeDrag.target : rangeDrag.snapshot.get(row)));
+    api.done();
+    return true;
+  }
+  // 手指拖到畫面上緣或下緣時自動捲動，長清單也能一路勾下去
+  function rangeAutoScroll() {
+    if (!rangeDrag || !rangeDrag.moved) return;
+    const y = rangeDrag.lastY, edge = 70, topEdge = 130;
+    const dy = y > window.innerHeight - edge ? 14 : y < topEdge ? -14 : 0;
+    if (dy) { window.scrollBy(0, dy); rangeDragUpdate(rangeDrag.lastX, rangeDrag.lastY); }
+    requestAnimationFrame(rangeAutoScroll);
+  }
+  document.addEventListener("pointermove", event => {
+    if (!rangeDrag || event.pointerId !== rangeDrag.pointerId) return;
+    rangeDrag.lastX = event.clientX; rangeDrag.lastY = event.clientY;
+    if (rangeDragUpdate(event.clientX, event.clientY) || rangeDrag.moved) event.preventDefault();
+  }, {passive: false});
+  const endRangeDrag = () => {
+    if (!rangeDrag) return;
+    if (rangeDrag.moved) {
+      rangeAnchor[rangeDrag.prefix] = Number(rangeDrag.start.dataset.index);
+      suppressBoxClick = true; setTimeout(() => { suppressBoxClick = false; }, 400);
+    }
+    document.body.classList.remove("range-selecting");
+    rangeDrag = null;
+  };
+  document.addEventListener("pointerup", endRangeDrag);
+  document.addEventListener("pointercancel", endRangeDrag);
+
   // 剛儲存修改的紀錄維持淺藍底，直到下一個操作才取消，方便核對改了哪些
   const justEdited = {p: new Set(), r: new Set()};
   function clearJustEdited() {
@@ -251,7 +342,7 @@
     const hint = document.querySelector("#tab-" + (prefix === "p" ? "points" : "reward") + " .bulk-hint");
     if (!hint) return;
     hint.classList.toggle("active", n > 1);
-    hint.textContent = n > 1 ? "按任一勾選列的「編輯」或「刪除」，會一次處理這 " + n + " 筆" : "勾選多筆後，按任一勾選列的「編輯」或「刪除」即可一次處理";
+    hint.textContent = n > 1 ? "按任一勾選列的「編輯」或「刪除」，會一次處理這 " + n + " 筆" : "小技巧：電腦按住 Shift 可連續勾選；手機按住勾選框上下滑動可連續勾選";
   }
   function updateSelBar() {
     const tab = settings.tab, n = tab === "points" ? pSelected.size : tab === "reward" ? rSelectedRows.size : 0;
