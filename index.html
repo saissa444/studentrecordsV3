@@ -96,9 +96,23 @@ th,td{padding:9px;border-bottom:1px solid #e7eaf0;text-align:left;vertical-align
 th{background:#eef3f9;white-space:nowrap;position:sticky;top:0}
 td.wrap{min-width:200px;max-width:380px;white-space:pre-wrap;overflow-wrap:anywhere}
 td.nowrap{white-space:nowrap}
-tr.selected-record{background:var(--soft)}
+tr.selected-record,tr.just-edited{background:var(--soft)}
 td button{margin:2px 4px 2px 0;min-height:38px;padding:6px 12px}
 .bulk-tools{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;margin:10px 0}
+.bulk-hint{font-size:12.5px}
+.bulk-hint.active{color:var(--brand);font-weight:650}
+/* 勾選時的懸浮提示列 */
+#selBar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom));z-index:31;display:flex;align-items:center;gap:12px;flex-wrap:nowrap;white-space:nowrap;max-width:calc(100vw - 80px);background:#1f3b63;color:#fff;border-radius:14px;padding:8px 10px 8px 16px;box-shadow:0 6px 20px rgba(16,33,61,.35);font-size:14px;line-height:1.4}
+#selBar strong{font-size:15px}
+#selBar .sel-text{overflow:hidden;text-overflow:ellipsis;min-width:0}
+#selBar[hidden]{display:none!important}
+@media (max-width:900px){
+  #selBar{left:12px;transform:none;max-width:calc(100vw - 84px)}
+}
+@media (max-width:520px){
+  #selBar .sel-help{display:none}
+}
+#selBar button{margin:0;min-height:34px;padding:4px 12px;background:rgba(255,255,255,.18);font-size:13.5px}
 .check-label{display:inline-flex;align-items:center;gap:8px;min-height:44px;margin:0;font-weight:500}
 .editbox{background:var(--soft);border:1px solid #c7d9f0;border-radius:12px;padding:16px;margin:12px 0}
 .edit-field-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -106,12 +120,12 @@ td button{margin:2px 4px 2px 0;min-height:38px;padding:6px 12px}
 .summary-line{font-weight:650}
 
 /* 手機：預覽表改為卡片，每個欄位都看得到 */
-@media (max-width:700px){
+@media (max-width:900px){
   .tablewrap{border:0;overflow:visible}
   .tablewrap table,.tablewrap tbody{display:block}
   .tablewrap thead{display:none}
   .tablewrap tr{display:flex;flex-wrap:wrap;align-items:center;border:1px solid var(--line);border-radius:12px;margin:10px 0;padding:8px 12px 10px;background:#fff;box-shadow:0 1px 3px rgba(16,33,61,.05)}
-  .tablewrap tr.selected-record{background:var(--soft);border-color:#9db6d6}
+  .tablewrap tr.selected-record,.tablewrap tr.just-edited{background:var(--soft);border-color:#9db6d6}
   .tablewrap td{display:block;flex:1 1 100%;border:0;padding:3px 0;max-width:none;min-width:0;white-space:normal;overflow-wrap:anywhere}
   .tablewrap td[data-label]{display:grid;grid-template-columns:96px 1fr;gap:8px}
   .tablewrap td[data-label]::before{content:attr(data-label);color:var(--muted);font-size:13px;font-weight:400;line-height:1.9}
@@ -145,7 +159,7 @@ td button{margin:2px 4px 2px 0;min-height:38px;padding:6px 12px}
 .filter-bar button{margin:0}
 td.cell-summary{display:none}
 #toTop{position:fixed;right:max(10px,calc((100vw - 1050px) / 2 - 58px));bottom:calc(14px + env(safe-area-inset-bottom));z-index:30;width:44px;height:44px;min-height:0;padding:0;border-radius:50%;margin:0;font-size:20px;line-height:44px;text-align:center;opacity:.88;box-shadow:0 4px 14px rgba(16,33,61,.28)}
-@media (max-width:700px){
+@media (max-width:900px){
   .view-seg{display:inline-flex}
   .tablewrap.compact td.cell-summary{display:block;flex:1 1 0;min-width:0;cursor:pointer;padding:2px 0}
   .tablewrap.compact td.cell-cohort{display:none}
@@ -163,11 +177,21 @@ td.cell-summary{display:none}
   tr.expanded .sum-chev{transform:rotate(90deg)}
   .sum-line2{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
 }
-/* 電腦／平板：兩個分頁的「操作」欄都在最左側並固定，編輯與刪除左右並排 */
-@media (min-width:701px){
-  .tablewrap.records td.cell-actions,.tablewrap.records th.col-actions{position:sticky;left:0;z-index:1;background:#fff;white-space:nowrap;box-shadow:8px 0 10px -8px rgba(16,33,61,.22)}
-  .tablewrap.records th.col-actions{background:#eef3f9;z-index:2}
-  .tablewrap.records tr.selected-record td.cell-actions{background:var(--soft)}
+/* 電腦／平板：「勾選」「操作」固定在最左側，編輯與刪除左右並排 */
+@media (min-width:901px){
+  /* 欄距與按鈕縮小、標題可換行，讓整張表在畫面內顯示，不必左右滑動 */
+  .tablewrap.records table{font-size:13.5px}
+  .tablewrap.records th,.tablewrap.records td{padding:8px 6px}
+  .tablewrap.records th{white-space:normal;line-height:1.35;vertical-align:bottom}
+  .tablewrap.records td.wrap{min-width:96px;max-width:260px}
+  .tablewrap.records td.cell-actions button{min-height:32px;padding:4px 9px;font-size:13px}
+  .tablewrap.records .cohort-tag{font-size:12px;padding:1px 7px}
+  .tablewrap.records td.cell-select,.tablewrap.records th.col-select{position:sticky;left:0;z-index:1;background:#fff;width:40px;min-width:40px;max-width:40px;text-align:center}
+  .tablewrap.records td.cell-actions,.tablewrap.records th.col-actions{position:sticky;left:40px;z-index:1;background:#fff;white-space:nowrap;box-shadow:8px 0 10px -8px rgba(16,33,61,.22)}
+  .tablewrap.records th.col-actions,.tablewrap.records th.col-select{background:#eef3f9;z-index:2}
+  .tablewrap.records tr.selected-record td.cell-actions,.tablewrap.records tr.selected-record td.cell-select,
+  .tablewrap.records tr.just-edited td.cell-actions,.tablewrap.records tr.just-edited td.cell-select{background:var(--soft)}
+  .tablewrap.records td.cell-select .check-label{min-height:0}
   .tablewrap.records td.cell-actions button{display:inline-block;width:auto;margin:2px 6px 2px 0}
   .tablewrap.records td.cell-actions button:last-child{margin-right:0}
 }
@@ -306,12 +330,11 @@ dialog .actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0;marg
         <div class="filter-bar" id="pFilterBar" hidden><select id="pFilterCohort" aria-label="篩選期別"></select><input id="pFilterText" type="search" placeholder="搜尋姓名、隊號、學號" aria-label="搜尋姓名、隊號、學號" autocomplete="off"><button type="button" id="pFilterClear" class="secondary" hidden>清除篩選</button></div>
         <p id="pFilterInfo" class="note" role="status"></p>
       </div>
-      <div id="pBulkTop" class="bulk-tools"><label class="check-label"><input id="pSelectAll" type="checkbox"> 全選</label><span id="pSelected" role="status">已勾選 0 筆</span><button id="pBulkEdit" type="button" disabled>編輯勾選紀錄</button><button id="pBulkDelete" type="button" class="danger" disabled>刪除勾選紀錄</button></div>
+      <div id="pBulkTop" class="bulk-tools"><label class="check-label"><input id="pSelectAll" type="checkbox"> 全選</label><span id="pSelected" role="status">已勾選 0 筆</span><span class="note bulk-hint">勾選多筆後，按任一勾選列的「編輯」或「刪除」即可一次處理</span></div>
       <div class="tablewrap records"><table>
-        <thead><tr><th class="col-actions">操作</th><th>勾選</th><th>期別</th><th>女生隊號</th><th>建制隊號</th><th>姓名</th><th>說明</th><th>學籍號碼</th><th>類型</th><th>分數</th><th>事由</th></tr></thead>
+        <thead><tr><th class="col-select">勾選</th><th class="col-actions">操作</th><th>期別</th><th>女生隊號</th><th>建制隊號</th><th>姓名</th><th>說明</th><th>學籍號碼</th><th>類型</th><th>分數</th><th>事由</th></tr></thead>
         <tbody id="pRecords"></tbody>
       </table></div>
-      <div id="pBulkBottom" class="bulk-tools"><label class="check-label"><input id="pSelectAllBottom" type="checkbox"> 全選</label><span id="pSelectedBottom" role="status">已勾選 0 筆</span><button id="pBulkEditBottom" type="button" disabled>編輯勾選紀錄</button><button id="pBulkDeleteBottom" type="button" class="danger" disabled>刪除勾選紀錄</button></div>
       <div class="actions">
         <button id="pExport" type="button" disabled>下載學校格式 Excel (.xlsx)</button>
         <button id="pClear" type="button" class="secondary" disabled>清空紀錄</button>
@@ -354,12 +377,11 @@ dialog .actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0;marg
         <div class="filter-bar" id="rFilterBar" hidden><select id="rFilterCohort" aria-label="篩選期別"></select><input id="rFilterText" type="search" placeholder="搜尋姓名、隊號、學號" aria-label="搜尋姓名、隊號、學號" autocomplete="off"><button type="button" id="rFilterClear" class="secondary" hidden>清除篩選</button></div>
         <p id="rFilterInfo" class="note" role="status"></p>
       </div>
-      <div class="bulk-tools"><label class="check-label"><input type="checkbox" id="rSelectAll" disabled> 全選</label><span id="rSelected" role="status">已勾選 0 筆</span><button id="rEditSelected" type="button" disabled>編輯勾選紀錄</button><button id="rDeleteSelected" type="button" class="danger" disabled>刪除勾選紀錄</button></div>
+      <div class="bulk-tools"><label class="check-label"><input type="checkbox" id="rSelectAll" disabled> 全選</label><span id="rSelected" role="status">已勾選 0 筆</span><span class="note bulk-hint">勾選多筆後，按任一勾選列的「編輯」或「刪除」即可一次處理</span></div>
       <div class="tablewrap records"><table>
-        <thead><tr><th class="col-actions">操作</th><th>勾選</th><th>期別</th><th>學號</th><th>姓名</th><th>條</th><th>款</th><th>目</th><th>獎懲事由</th><th>額度</th><th>加重減輕事由</th><th>加重減輕額度</th></tr></thead>
+        <thead><tr><th class="col-select">勾選</th><th class="col-actions">操作</th><th>期別</th><th>學號</th><th>姓名</th><th>條</th><th>款</th><th>目</th><th>獎懲事由</th><th>額度</th><th>加重減輕事由</th><th>加重減輕額度</th></tr></thead>
         <tbody id="rBody"></tbody>
       </table></div>
-      <div class="bulk-tools"><label class="check-label"><input type="checkbox" id="rSelectAllBottom" disabled> 全選</label><span id="rSelectedBottom" role="status">已勾選 0 筆</span><button id="rEditSelectedBottom" type="button" disabled>編輯勾選紀錄</button><button id="rDeleteSelectedBottom" type="button" class="danger" disabled>刪除勾選紀錄</button></div>
       <div id="rDup" role="status" class="status error" hidden></div>
       <div class="actions">
         <button id="rExport" type="button" disabled>匯出 Excel</button>
@@ -450,11 +472,12 @@ dialog .actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0;marg
       <p class="note">資料只存在「這台裝置的這個瀏覽器」。換電腦、換瀏覽器或清除瀏覽器網站資料後，需要重新匯入。iPhone 建議用 Safari「加入主畫面」後從主畫面開啟，資料比較不會被系統清掉。</p>
       <button id="wipeAll" type="button" class="solid-danger">清除本機全部資料</button>
     </section>
-    <p class="note" style="text-align:center">版本 2026.10.18j</p>
+    <p class="note" style="text-align:center">版本 2026.10.18n</p>
   </div>
   </main>
 </div>
 
+<div id="selBar" role="status" aria-live="polite" hidden><span class="sel-text"><strong id="selBarCount"></strong><span class="sel-help">　按勾選列的編輯／刪除可一次處理</span></span><button id="selBarClear" type="button">取消勾選</button></div>
 <button id="toTop" type="button" hidden aria-label="回到頂端" title="回到頂端">↑</button>
 
 <!-- 獎懲編輯視窗 -->
@@ -500,9 +523,9 @@ dialog .actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0;marg
 })();
 </script>
 <script defer src="./vendor/xlsx.full.min.js?v=0.20.3"></script>
-<script defer src="./js/core.js?v=20261018j"></script>
-<script defer src="./js/store.js?v=20261018j"></script>
-<script defer src="./js/app.js?v=20261018j"></script>
+<script defer src="./js/core.js?v=20261018n"></script>
+<script defer src="./js/store.js?v=20261018n"></script>
+<script defer src="./js/app.js?v=20261018n"></script>
 <script>if ("serviceWorker" in navigator && location.protocol === "https:") window.addEventListener("load", function () { navigator.serviceWorker.register("./sw.js").catch(function () {}); });</script>
 </body>
 </html>

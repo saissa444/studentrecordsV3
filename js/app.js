@@ -230,12 +230,46 @@
 
   /* ═══════════ 分頁 ═══════════ */
 
+  // 剛儲存修改的紀錄維持淺藍底，直到下一個操作才取消，方便核對改了哪些
+  const justEdited = {p: new Set(), r: new Set()};
+  function clearJustEdited() {
+    if (!justEdited.p.size && !justEdited.r.size) return;
+    justEdited.p.clear(); justEdited.r.clear();
+    document.querySelectorAll("tr.just-edited").forEach(tr => tr.classList.remove("just-edited"));
+  }
+  document.addEventListener("click", event => {
+    if (!justEdited.p.size && !justEdited.r.size) return;
+    const control = event.target.closest("button, input, select, textarea, a, .file-button");
+    if (!control) return;
+    // 只是查看的操作（展開明細、分組／搜尋、切換檢視或分頁、回頂端）不取消
+    if (control.closest(".cell-summary, .list-tools, .tabs, .cohort-bar, #toTop")) return;
+    clearJustEdited();
+  }, true);
+
+  // 勾選提示：全選旁的文字＋畫面底部的懸浮提示列
+  function setBulkHint(prefix, n) {
+    const hint = document.querySelector("#tab-" + (prefix === "p" ? "points" : "reward") + " .bulk-hint");
+    if (!hint) return;
+    hint.classList.toggle("active", n > 1);
+    hint.textContent = n > 1 ? "按任一勾選列的「編輯」或「刪除」，會一次處理這 " + n + " 筆" : "勾選多筆後，按任一勾選列的「編輯」或「刪除」即可一次處理";
+  }
+  function updateSelBar() {
+    const tab = settings.tab, n = tab === "points" ? pSelected.size : tab === "reward" ? rSelectedRows.size : 0;
+    $("selBar").hidden = n < 2 || $("app").hidden;
+    $("selBarCount").textContent = "已勾選 " + n + " 筆";
+  }
+  $("selBarClear").addEventListener("click", () => {
+    if (settings.tab === "points") { if (pBulk) pCancelEditing(); pSelected.clear(); pUpdateSelection(); }
+    else if (settings.tab === "reward") { rSelectedRows.clear(); rRender(); }
+  });
+
   function showTab(tab) {
     ["points", "reward", "settings"].forEach(name => {
       $("tab-" + name).hidden = name !== tab;
       $("tabBtn-" + name).setAttribute("aria-selected", String(name === tab));
     });
     if (settings.tab !== tab) { settings.tab = tab; saveSettings(); }
+    updateSelBar();
   }
   document.querySelectorAll(".tab").forEach(button => button.addEventListener("click", () => showTab(button.dataset.tab)));
   function updateTabCounts() {
@@ -635,17 +669,19 @@
     for (const r of Array.from(pSelected)) if (!pRecords.includes(r)) pSelected.delete(r);
     const n = pSelected.size, visible = pRecords.filter(r => matchesFilter("p", r));
     const all = visible.length > 0 && visible.every(r => pSelected.has(r)), some = !all && visible.some(r => pSelected.has(r));
-    ["", "Bottom"].forEach(suffix => {
-      $("pSelected" + suffix).textContent = "已勾選 " + n + " 筆";
-      $("pBulkEdit" + suffix).disabled = n === 0;
-      $("pBulkDelete" + suffix).disabled = n === 0;
-      $("pSelectAll" + suffix).disabled = pRecords.length === 0;
-      $("pSelectAll" + suffix).checked = all;
-      $("pSelectAll" + suffix).indeterminate = some;
-    });
+    $("pSelected").textContent = "已勾選 " + n + " 筆";
+    setBulkHint("p", n);
+    $("pSelectAll").disabled = pRecords.length === 0;
+    $("pSelectAll").checked = all;
+    $("pSelectAll").indeterminate = some;
+    // 勾選多筆時，勾選列上的按鈕會一次處理全部勾選的紀錄（按鈕文字不變，以提示說明）
     $("pRecords").querySelectorAll("button[data-edit-index]").forEach(button => {
-      button.textContent = n > 1 && pSelected.has(pRecords[Number(button.dataset.editIndex)]) ? "編輯勾選 " + n + " 筆" : "編輯";
+      button.title = n > 1 && pSelected.has(pRecords[Number(button.dataset.editIndex)]) ? "將一次編輯勾選的 " + n + " 筆紀錄" : "";
     });
+    $("pRecords").querySelectorAll("button[data-delete-index]").forEach(button => {
+      button.title = n > 1 && pSelected.has(pRecords[Number(button.dataset.deleteIndex)]) ? "將一次刪除勾選的 " + n + " 筆紀錄" : "";
+    });
+    updateSelBar();
     $("pRecords").querySelectorAll("input[data-record-index]").forEach(box => {
       box.checked = pSelected.has(pRecords[Number(box.dataset.recordIndex)]);
       box.closest("tr").classList.toggle("selected-record", box.checked);
@@ -658,7 +694,6 @@
     pUpdateSelection();
   }
   $("pSelectAll").addEventListener("change", pSelectAll);
-  $("pSelectAllBottom").addEventListener("change", pSelectAll);
 
   function pEditCategoryOptions(selectedCategory, selectedItem) {
     const prefix = core.kindPrefix($("pEditKind").value);
@@ -723,8 +758,7 @@
       if (firstRow) firstRow.classList.remove("expanded");
     }
   }
-  $("pBulkEdit").addEventListener("click", () => pStartBulkEditing(null, "top"));
-  $("pBulkEditBottom").addEventListener("click", () => pStartBulkEditing(null, "bottom"));
+
 
   function pDeleteSelected() {
     const targets = new Set(pRecords.filter(r => pSelected.has(r)));
@@ -736,8 +770,7 @@
     pRenderRecords(); saveDrafts();
     $("pCount").textContent += "（已刪除 " + targets.size + " 筆紀錄）";
   }
-  $("pBulkDelete").addEventListener("click", pDeleteSelected);
-  $("pBulkDeleteBottom").addEventListener("click", pDeleteSelected);
+
 
   $("pSaveEdit").addEventListener("click", () => {
     if (pEditingIndex === null || !pRecords[pEditingIndex]) return;
@@ -752,8 +785,10 @@
     const targets = pEditingTargets.filter(r => pRecords.includes(r));
     if (targets.length !== pEditingTargets.length) return;
     targets.forEach(r => Object.assign(r, patch));
+    pSelected.clear(); // 儲存後取消勾選
+    justEdited.p = new Set(targets);
     pCancelEditing(); pRenderRecords(); saveDrafts();
-    $("pCount").textContent += "（已儲存 " + targets.length + " 筆修改）";
+    $("pCount").textContent += "（已儲存 " + targets.length + " 筆修改，以淺藍色標示）";
   });
 
   /* ───────── 預覽清單：精簡／完整、依事由分組、篩選 ───────── */
@@ -892,6 +927,7 @@
     $("pRecords").replaceChildren();
     pRecords.forEach((r, i) => {
       const tr = document.createElement("tr"); tr.dataset.index = i;
+      if (justEdited.p.has(r)) tr.classList.add("just-edited");
       const selectCell = document.createElement("td"), box = document.createElement("input");
       box.type = "checkbox"; box.dataset.recordIndex = i;
       box.setAttribute("aria-label", "勾選第 " + (i + 1) + " 筆：" + (r.female || "") + " " + r.name);
@@ -906,9 +942,12 @@
       const edit = document.createElement("button"), del = document.createElement("button");
       edit.type = "button"; edit.textContent = "編輯"; edit.dataset.editIndex = i;
       edit.addEventListener("click", () => { if (pSelected.size > 1 && pSelected.has(r)) pStartBulkEditing(i); else pStartEditing(i); });
-      del.type = "button"; del.textContent = "刪除"; del.className = "danger";
-      del.addEventListener("click", () => { pRecords.splice(pRecords.indexOf(r), 1); pSelected.delete(r); pRenderRecords(); saveDrafts(); });
-      td.append(edit, del); tr.prepend(td); // 操作欄放最左邊（手機卡片仍以 CSS 排在底部）
+      del.type = "button"; del.textContent = "刪除"; del.className = "danger"; del.dataset.deleteIndex = i;
+      del.addEventListener("click", () => {
+        if (pSelected.size > 1 && pSelected.has(r)) { pDeleteSelected(); return; }
+        pRecords.splice(pRecords.indexOf(r), 1); pSelected.delete(r); pRenderRecords(); saveDrafts();
+      });
+      td.append(edit, del); tr.prepend(td); tr.prepend(selectCell); // 勾選 → 操作 在最左邊（手機卡片的按鈕仍排在底部）
       $("pRecords").appendChild(tr);
     });
     $("pExport").disabled = !pRecords.length;
@@ -1007,14 +1046,18 @@
     const n = rSelectedRows.size, total = rRecords.length;
     const visible = rRecords.map((r, i) => i).filter(i => matchesFilter("r", rRecords[i]));
     const allVisible = visible.length > 0 && visible.every(i => rSelectedRows.has(i)), someVisible = !allVisible && visible.some(i => rSelectedRows.has(i));
-    ["", "Bottom"].forEach(suffix => {
-      $("rSelected" + suffix).textContent = "已勾選 " + n + " / " + total + " 筆";
-      $("rEditSelected" + suffix).disabled = !n || !rTpl;
-      $("rDeleteSelected" + suffix).disabled = !n;
-      $("rSelectAll" + suffix).disabled = !total;
-      $("rSelectAll" + suffix).checked = allVisible;
-      $("rSelectAll" + suffix).indeterminate = someVisible;
+    $("rSelected").textContent = "已勾選 " + n + " / " + total + " 筆";
+    setBulkHint("r", n);
+    $("rSelectAll").disabled = !total;
+    $("rSelectAll").checked = allVisible;
+    $("rSelectAll").indeterminate = someVisible;
+    $("rBody").querySelectorAll("button[data-edit-index]").forEach(button => {
+      button.title = n > 1 && rSelectedRows.has(Number(button.dataset.editIndex)) ? "將一次編輯勾選的 " + n + " 筆紀錄" : "";
     });
+    $("rBody").querySelectorAll("button[data-delete-index]").forEach(button => {
+      button.title = n > 1 && rSelectedRows.has(Number(button.dataset.deleteIndex)) ? "將一次刪除勾選的 " + n + " 筆紀錄" : "";
+    });
+    updateSelBar();
     $("rClearRecords").disabled = !total;
     $("rExport").disabled = !total;
   }
@@ -1037,13 +1080,19 @@
       label.append(checkbox); selectCell.className = "cell-select"; selectCell.append(label); row.append(selectCell);
       row.append(summaryCell("r", record, row));
       row.classList.toggle("selected-record", checkbox.checked);
+      if (justEdited.r.has(record)) row.classList.add("just-edited");
       const actionCell = document.createElement("td"); actionCell.className = "nowrap cell-actions";
       const edit = document.createElement("button"), remove = document.createElement("button");
-      edit.type = "button"; edit.textContent = "編輯"; edit.disabled = !rTpl;
-      edit.addEventListener("click", () => rOpenEditor([index]));
-      remove.type = "button"; remove.className = "danger"; remove.textContent = "刪除";
-      remove.addEventListener("click", () => rDelete(index));
-      actionCell.append(edit, remove); row.prepend(actionCell);
+      edit.type = "button"; edit.textContent = "編輯"; edit.disabled = !rTpl; edit.dataset.editIndex = index;
+      edit.addEventListener("click", () => {
+        if (rSelectedRows.size > 1 && rSelectedRows.has(index)) rOpenEditor(Array.from(rSelectedRows).sort((a, b) => a - b));
+        else rOpenEditor([index]);
+      });
+      remove.type = "button"; remove.className = "danger"; remove.textContent = "刪除"; remove.dataset.deleteIndex = index;
+      remove.addEventListener("click", () => {
+        if (rSelectedRows.size > 1 && rSelectedRows.has(index)) rDeleteSelected(); else rDelete(index);
+      });
+      actionCell.append(edit, remove); row.prepend(actionCell); row.prepend(selectCell);
       const cohortCell = document.createElement("td"); cohortCell.className = "cell-cohort"; cohortCell.append(cohortTag(record.cohort)); row.append(cohortCell);
       core.rewardFields.forEach(field => {
         const cell = document.createElement("td");
@@ -1064,7 +1113,7 @@
     rRender(); saveDrafts();
     rReport(rRecords.length ? "已刪除 1 筆紀錄；目前共 " + rRecords.length + " 筆。" : "已刪除最後一筆紀錄；可再次批次新增。", "ok");
   }
-  ["rSelectAll", "rSelectAllBottom"].forEach(id => $(id).addEventListener("change", () => {
+  ["rSelectAll"].forEach(id => $(id).addEventListener("change", () => {
     const checked = $(id).checked;
     rRecords.forEach((r, i) => { if (!matchesFilter("r", r)) return; if (checked) rSelectedRows.add(i); else rSelectedRows.delete(i); });
     rRender();
@@ -1080,8 +1129,7 @@
     rRender(); saveDrafts();
     rReport("已刪除 " + targets.size + " 筆紀錄；" + (rRecords.length ? "目前共 " + rRecords.length + " 筆。" : "已無紀錄，可再次批次新增。"), "ok");
   }
-  $("rDeleteSelected").addEventListener("click", rDeleteSelected);
-  $("rDeleteSelectedBottom").addEventListener("click", rDeleteSelected);
+
   $("rClearRecords").addEventListener("click", () => {
     if (!confirm("確定清空全部 " + rRecords.length + " 筆獎懲紀錄？")) return;
     rRecords = []; rSelectedRows.clear(); rRender(); saveDrafts();
@@ -1149,7 +1197,7 @@
     $("rEditStatus").textContent = ""; $("rEditStatus").className = "";
     $("rEditor").showModal();
   }
-  ["rEditSelected", "rEditSelectedBottom"].forEach(id => $(id).addEventListener("click", () => rOpenEditor(Array.from(rSelectedRows).sort((a, b) => a - b))));
+
   $("rEditArticle").addEventListener("change", () => rFillEditClauses());
   $("rEditClause").addEventListener("change", () => rFillEditItems());
   $("rEditItem").addEventListener("change", () => { rFillEditorReason(); rSyncEditor(); });
@@ -1167,11 +1215,13 @@
         patch.adjustReason = $("rEditAdjustReason").value;
         patch.adjustAmount = patch.adjustReason ? $("rEditAdjustAmount").value : "";
       }
-      const count = rEditingRows.length;
+      const count = rEditingRows.length, editedRows = rEditingRows.slice();
       rRecords = core.editRewardRecords(rRecords, rEditingRows, rT(), patch);
+      rSelectedRows.clear(); // 儲存後取消勾選
+      justEdited.r = new Set(editedRows.map(i => rRecords[i]));
       $("rEditor").close();
       rRender(); saveDrafts();
-      rReport("已更新 " + count + " 筆紀錄；目前共 " + rRecords.length + " 筆。", "ok");
+      rReport("已更新 " + count + " 筆紀錄（以淺藍色標示）；目前共 " + rRecords.length + " 筆。", "ok");
     } catch (error) {
       $("rEditStatus").textContent = error.message; $("rEditStatus").className = "err";
     }

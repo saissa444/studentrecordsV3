@@ -95,16 +95,21 @@ let rDupBefore = 0;
   assert.match(await page.textContent("#pCount"), /第44期 2 筆、第45期 1 筆/);
 
   if (!process.env.MOBILE) {
-    step("電腦：操作欄在最左邊，編輯在刪除左側並排");
-    for (const width of [1200, 820]) {
+    step("電腦：勾選、操作在最左邊，編輯在刪除左側並排");
+    for (const width of [1280, 1024, 901]) {
       await page.setViewportSize({width, height: 900});
       const wrap = await page.locator("#tab-points .tablewrap").boundingBox();
       const row = page.locator("#pRecords > tr").first();
       const edit = await row.locator("button:has-text('編輯')").boundingBox(), del = await row.locator("button:has-text('刪除')").boundingBox();
-      assert.ok(edit.x - wrap.x < 30, width + "px：編輯不在最左邊");
+      const box = await row.locator("input[type=checkbox]").boundingBox();
+      assert.ok(box.x - wrap.x < 30 && box.x < edit.x, width + "px：勾選不在最左邊");
+      assert.ok(edit.x - wrap.x < 110, width + "px：操作欄不在勾選右側");
+      const overflow = await page.$eval("#tab-points .tablewrap", el => el.scrollWidth - el.clientWidth);
+      assert.ok(overflow <= 0, width + "px：加扣分表格需要左右捲動（多 " + overflow + "px）");
       assert.ok(edit.x + edit.width <= del.x && Math.abs(edit.y - del.y) < 4, width + "px：編輯與刪除未左右並排");
       assert.ok(del.x + del.width <= wrap.x + wrap.width, width + "px：刪除超出可視範圍");
-      assert.equal(await page.textContent("#tab-points thead th:first-child"), "操作");
+      assert.equal(await page.textContent("#tab-points thead th:first-child"), "勾選");
+      assert.equal(await page.textContent("#tab-points thead th:nth-child(2)"), "操作");
     }
     await page.setViewportSize({width: 1200, height: 900});
   }
@@ -112,10 +117,34 @@ let rDupBefore = 0;
   step("加扣分：批次編輯分數");
   await page.check("#pRecords tr:nth-child(1) input[type=checkbox]");
   await page.check("#pRecords tr:nth-child(2) input[type=checkbox]");
-  await page.click("#pBulkEdit");
+  // 勾選多筆後，列上的按鈕變成一次處理全部勾選紀錄
+  assert.equal(await page.locator("#pBulkEdit, #pBulkDelete, #pBulkEditBottom").count(), 0);
+  if (process.env.MOBILE) await page.click("#pRecords > tr:nth-child(1) .cell-summary");
+  const multiEdit = page.locator("#pRecords > tr:nth-child(1) button[data-edit-index]");
+  // 按鈕文字固定；筆數顯示在全選旁與底部懸浮提示，按鈕另有滑鼠提示
+  assert.equal(await multiEdit.textContent(), "編輯");
+  assert.equal(await page.textContent("#pRecords > tr:nth-child(1) button[data-delete-index]"), "刪除");
+  assert.match(await multiEdit.getAttribute("title"), /一次編輯勾選的 2 筆/);
+  assert.equal(await page.getAttribute("#pRecords > tr:nth-child(3) button[data-edit-index]", "title"), "");
+  assert.match(await page.textContent("#tab-points .bulk-hint"), /一次處理這 2 筆/);
+  assert.equal(await page.isVisible("#selBar"), true);
+  assert.match(await page.textContent("#selBarCount"), /已勾選 2 筆/);
+  await multiEdit.click();
+  assert.match(await page.textContent("#pEditTitle"), /批次編輯 2 筆/);
+  // 切到獎懲分頁時，懸浮提示不顯示加扣分的勾選
+  await page.click("#tabBtn-reward"); assert.equal(await page.isVisible("#selBar"), false); await page.click("#tabBtn-points");
   await page.check("#pApplyScore"); await page.uncheck("#pApplyDetail"); await page.uncheck("#pApplyKind");
   await page.selectOption("#pEditScore", "0.3");
   await page.click("#pSaveEdit");
+  assert.match(await page.textContent("#pSelected"), /已勾選 0 筆/);
+  assert.equal(await page.locator("#pRecords input[type=checkbox]:checked").count(), 0);
+  // 剛修改的 2 筆維持淺藍底；查看操作不取消，下一個操作才取消
+  assert.equal(await page.locator("#pRecords > tr.just-edited").count(), 2);
+  await page.fill("#pFilterText", "林"); await page.click("#pFilterClear");
+  assert.equal(await page.locator("#pRecords > tr.just-edited").count(), 2);
+  await page.check("#pRecords > tr:nth-child(3) input[type=checkbox]");
+  assert.equal(await page.locator("#pRecords > tr.just-edited").count(), 0);
+  await page.uncheck("#pRecords > tr:nth-child(3) input[type=checkbox]");
   const scores = await page.$$eval("#pRecords tr td[data-label='分數']", tds => tds.map(td => td.textContent));
   assert.deepEqual(scores, ["0.3", "0.3", "0.5"]);
 
@@ -142,7 +171,7 @@ let rDupBefore = 0;
   if (process.env.MOBILE) {
     step("手機：精簡列表、點開詳細、切換完整模式");
     assert.equal(await page.getAttribute(".view-seg button[data-view=compact]", "aria-pressed"), "true");
-    const firstRow = page.locator("#pRecords > tr").first();
+    const firstRow = page.locator("#pRecords > tr").nth(2); // 尚未展開過的一列
     assert.equal(await firstRow.locator("td[data-label='學籍號碼']").isVisible(), false);
     const compactHeight = (await firstRow.boundingBox()).height;
     assert.ok(compactHeight < 90, "精簡列高度 " + compactHeight);
@@ -190,16 +219,23 @@ let rDupBefore = 0;
     const wrapR = await page.locator("#tab-reward .tablewrap").boundingBox();
     const rowR = page.locator("#rBody > tr").first();
     const e = await rowR.locator("button:has-text('編輯')").boundingBox(), d = await rowR.locator("button:has-text('刪除')").boundingBox();
-    assert.ok(e.x - wrapR.x < 30 && e.x + e.width <= d.x && Math.abs(e.y - d.y) < 4, "獎懲：操作欄位置或排列不正確");
-    assert.equal(await page.textContent("#tab-reward thead th:first-child"), "操作");
+    const cb = await rowR.locator("input[type=checkbox]").boundingBox();
+    assert.ok(cb.x < e.x && e.x - wrapR.x < 110 && e.x + e.width <= d.x && Math.abs(e.y - d.y) < 4, "獎懲：操作欄位置或排列不正確");
+    assert.equal(await page.textContent("#tab-reward thead th:first-child"), "勾選");
+    assert.equal(await page.textContent("#tab-reward thead th:nth-child(2)"), "操作");
   }
   if (process.env.MOBILE) await page.click("#rBody tr:nth-child(2) .cell-summary");
+  await page.check("#rBody tr:nth-child(2) input[type=checkbox]");
+  assert.match(await page.textContent("#rSelected"), /已勾選 1 \//);
   await page.click("#rBody tr:nth-child(2) button:has-text('編輯')");
   assert.match(await page.textContent("#rEditClause"), /第17款｜（分 2 目/);
   assert.match(await page.textContent("#rEditItem"), /第2目｜測試事由丙。/);
   await page.fill("#rEditReason", "改過的事由");
   await page.click("#rEditForm button[type=submit]");
   await page.waitForFunction(() => !document.getElementById("rEditor").open);
+  assert.match(await page.textContent("#rSelected"), /已勾選 0 \//);
+  assert.equal(await page.locator("#rBody > tr.just-edited").count(), 1);
+  assert.equal(await page.getAttribute("#rBody > tr:nth-child(2)", "class").then(c => /just-edited/.test(c)), true);
   assert.match(await page.$eval("#rBody tr:nth-child(2)", tr => tr.innerText), /改過的事由/);
   const [dl2] = await Promise.all([page.waitForEvent("download"), page.click("#rExport")]);
   step("獎懲：勾選多筆一次刪除");
@@ -209,15 +245,27 @@ let rDupBefore = 0;
   await page.selectOption("#rArticle", "第19條"); await page.selectOption("#rClause", "第1款");
   await page.click("#rAdd");
   await page.waitForFunction(n => document.querySelectorAll("#rBody > tr").length === n + 2, rDupBefore);
-  assert.equal(await page.isDisabled("#rDeleteSelected"), true);
+  assert.equal(await page.locator("#rDeleteSelected, #rEditSelected, #rDeleteSelectedBottom").count(), 0);
   await page.check("#rBody > tr:nth-child(" + (rDupBefore + 1) + ") input[type=checkbox]");
   await page.check("#rBody > tr:nth-child(" + (rDupBefore + 2) + ") input[type=checkbox]");
-  assert.match(await page.textContent("#rSelectedBottom"), /已勾選 2 \//);
-  await page.click("#rDeleteSelectedBottom");
+  assert.match(await page.textContent("#rSelected"), /已勾選 2 \//);
+  const lastRow = "#rBody > tr:nth-child(" + (rDupBefore + 2) + ")";
+  if (process.env.MOBILE) await page.click(lastRow + " .cell-summary");
+  assert.equal(await page.textContent(lastRow + " button[data-edit-index]"), "編輯");
+  assert.match(await page.getAttribute(lastRow + " button[data-delete-index]", "title"), /一次刪除勾選的 2 筆/);
+  assert.match(await page.textContent("#selBarCount"), /已勾選 2 筆/);
+  if (!process.env.MOBILE) {
+    const overflowR = await page.$eval("#tab-reward .tablewrap", el => el.scrollWidth - el.clientWidth);
+    assert.ok(overflowR <= 0, "獎懲表格需要左右捲動（多 " + overflowR + "px）");
+  }
+  // 未勾選的列仍只處理自己
+  assert.equal(await page.textContent("#rBody > tr:nth-child(1) button[data-delete-index]"), "刪除");
+  await page.click(lastRow + " button[data-delete-index]");
   await page.waitForFunction(n => document.querySelectorAll("#rBody > tr").length === n, rDupBefore);
   assert.match(await page.textContent("#rResult"), /已刪除 2 筆/);
+  assert.equal(await page.isVisible("#selBar"), false);
   assert.match(await page.$eval("#rBody > tr:nth-child(2)", tr => tr.textContent), /改過的事由/);
-  assert.equal(await page.isDisabled("#rDeleteSelected"), true);
+  assert.match(await page.textContent("#rSelected"), /已勾選 0 \//);
   const rFile = path.join(OUT, "reward.xlsx"); await dl2.saveAs(rFile);
 
   step("設定開啟密碼");
