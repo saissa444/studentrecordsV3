@@ -125,6 +125,51 @@ td button{margin:2px 4px 2px 0;min-height:38px;padding:6px 12px}
   .tablewrap tr#pInlineEditRow{padding:0;border:0;box-shadow:none;background:transparent}
   .check-label{min-height:36px}
 }
+
+/* 預覽清單工具：精簡／完整、分組、篩選、回到頂端 */
+.list-tools{margin:8px 0}
+.view-seg{display:none;border:1px solid #c5d0de;border-radius:10px;overflow:hidden;margin:4px 0 8px}
+.view-seg button{margin:0;border-radius:0;background:#fff;color:var(--brand);min-height:38px;padding:6px 18px}
+.view-seg button[aria-pressed="true"]{background:var(--brand);color:#fff}
+.groups-box{border:1px solid var(--line);border-radius:12px;padding:4px 12px;margin:8px 0;background:#fafcff}
+.groups-box summary{cursor:pointer;font-weight:650;padding:8px 0}
+.groups{display:flex;flex-direction:column;gap:6px;padding-bottom:10px}
+.group-item{display:block;width:100%;margin:0;text-align:left;background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-weight:400;min-height:0}
+.group-item[aria-pressed="true"]{border:2px solid var(--brand);background:var(--soft)}
+.group-item .g-head{display:flex;justify-content:space-between;gap:10px;font-weight:650;line-height:1.5}
+.group-item .g-count{white-space:nowrap;color:var(--brand)}
+.group-item .g-names{color:var(--muted);font-size:13px;margin-top:2px;line-height:1.55}
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px}
+.filter-bar select{width:auto;min-width:118px;flex:0 0 auto}
+.filter-bar input{flex:1 1 170px;width:auto}
+.filter-bar button{margin:0}
+td.cell-summary{display:none}
+#toTop{position:fixed;right:max(10px,calc((100vw - 1050px) / 2 - 58px));bottom:calc(14px + env(safe-area-inset-bottom));z-index:30;width:44px;height:44px;min-height:0;padding:0;border-radius:50%;margin:0;font-size:20px;line-height:44px;text-align:center;opacity:.88;box-shadow:0 4px 14px rgba(16,33,61,.28)}
+@media (max-width:700px){
+  .view-seg{display:inline-flex}
+  .tablewrap.compact td.cell-summary{display:block;flex:1 1 0;min-width:0;cursor:pointer;padding:2px 0}
+  .tablewrap.compact td.cell-cohort{display:none}
+  .tablewrap.compact tr:not(.expanded):not(#pInlineEditRow)>td:not(.cell-select):not(.cell-summary){display:none}
+  .tablewrap.compact tr{margin:6px 0;padding:7px 10px}
+  .tablewrap.compact tr.expanded td.cell-summary{padding-bottom:8px;margin-bottom:4px;border-bottom:1px dashed var(--line)}
+  .tablewrap.compact td.cell-select{padding-right:8px}
+  .sum-line1{display:flex;align-items:center;gap:6px;min-width:0}
+  .sum-line1 .cohort-tag{font-size:11.5px;padding:1px 7px}
+  .sum-who{font-weight:700;font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+  .sum-amt{font-weight:700;white-space:nowrap;font-size:14px}
+  .sum-amt.minus{color:var(--err)}
+  .sum-amt.plus{color:var(--ok)}
+  .sum-chev{color:var(--muted);display:inline-block;transition:transform .15s;font-size:18px;line-height:1;width:12px;text-align:center}
+  tr.expanded .sum-chev{transform:rotate(90deg)}
+  .sum-line2{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+}
+/* 電腦／平板：加扣分表格的「操作」欄固定在右側，不必左右捲動 */
+@media (min-width:701px){
+  #pRecords td.cell-actions,.tablewrap th.col-actions{position:sticky;right:0;z-index:1;background:#fff;box-shadow:-8px 0 10px -8px rgba(16,33,61,.25)}
+  .tablewrap th.col-actions{background:#eef3f9;z-index:2}
+  #pRecords tr.selected-record td.cell-actions{background:var(--soft)}
+  #pRecords td.cell-actions button{display:block;width:100%;margin:2px 0}
+}
 dialog{width:min(620px,calc(100% - 24px));max-height:85vh;max-height:85dvh;border:1px solid #b8c7d9;border-radius:14px;padding:20px;overflow:auto;color:var(--ink)}
 dialog::backdrop{background:#10213d80}
 .edit-group{margin:14px 0;padding:12px;border:1px solid var(--line);border-radius:10px}
@@ -254,9 +299,15 @@ dialog .actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0;marg
         <p id="pEditError" class="err" role="alert"></p>
         <div class="actions"><button id="pSaveEdit" type="button">儲存修改</button><button id="pCancelEdit" type="button" class="secondary">取消</button></div>
       </div>
+<div class="list-tools">
+        <div class="view-seg" role="group" aria-label="手機預覽方式"><button type="button" data-view="compact">精簡</button><button type="button" data-view="full">完整</button></div>
+        <details class="groups-box" id="pGroupsBox" open hidden><summary id="pGroupsTitle">依事由分組</summary><div id="pGroups" class="groups"></div></details>
+        <div class="filter-bar" id="pFilterBar" hidden><select id="pFilterCohort" aria-label="篩選期別"></select><input id="pFilterText" type="search" placeholder="搜尋姓名、隊號、學號" aria-label="搜尋姓名、隊號、學號" autocomplete="off"><button type="button" id="pFilterClear" class="secondary" hidden>清除篩選</button></div>
+        <p id="pFilterInfo" class="note" role="status"></p>
+      </div>
       <div id="pBulkTop" class="bulk-tools"><label class="check-label"><input id="pSelectAll" type="checkbox"> 全選</label><span id="pSelected" role="status">已勾選 0 筆</span><button id="pBulkEdit" type="button" disabled>編輯勾選紀錄</button><button id="pBulkDelete" type="button" class="danger" disabled>刪除勾選紀錄</button></div>
-      <div class="tablewrap"><table>
-        <thead><tr><th>勾選</th><th>期別</th><th>女生隊號</th><th>建制隊號</th><th>姓名</th><th>說明</th><th>學籍號碼</th><th>類型</th><th>分數</th><th>事由</th><th>操作</th></tr></thead>
+      <div class="tablewrap records"><table>
+        <thead><tr><th>勾選</th><th>期別</th><th>女生隊號</th><th>建制隊號</th><th>姓名</th><th>說明</th><th>學籍號碼</th><th>類型</th><th>分數</th><th>事由</th><th class="col-actions">操作</th></tr></thead>
         <tbody id="pRecords"></tbody>
       </table></div>
       <div id="pBulkBottom" class="bulk-tools"><label class="check-label"><input id="pSelectAllBottom" type="checkbox"> 全選</label><span id="pSelectedBottom" role="status">已勾選 0 筆</span><button id="pBulkEditBottom" type="button" disabled>編輯勾選紀錄</button><button id="pBulkDeleteBottom" type="button" class="danger" disabled>刪除勾選紀錄</button></div>
@@ -296,8 +347,14 @@ dialog .actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0;marg
     <section>
       <h2>③ 預覽與匯出</h2>
       <div id="rResult" role="status" class="status">尚未新增紀錄</div>
+<div class="list-tools">
+        <div class="view-seg" role="group" aria-label="手機預覽方式"><button type="button" data-view="compact">精簡</button><button type="button" data-view="full">完整</button></div>
+        <details class="groups-box" id="rGroupsBox" open hidden><summary id="rGroupsTitle">依事由分組</summary><div id="rGroups" class="groups"></div></details>
+        <div class="filter-bar" id="rFilterBar" hidden><select id="rFilterCohort" aria-label="篩選期別"></select><input id="rFilterText" type="search" placeholder="搜尋姓名、隊號、學號" aria-label="搜尋姓名、隊號、學號" autocomplete="off"><button type="button" id="rFilterClear" class="secondary" hidden>清除篩選</button></div>
+        <p id="rFilterInfo" class="note" role="status"></p>
+      </div>
       <div class="bulk-tools"><label class="check-label"><input type="checkbox" id="rSelectAll" disabled> 全選</label><span id="rSelected" role="status">已選取 0 筆</span><button id="rEditSelected" type="button" disabled>編輯已選取</button></div>
-      <div class="tablewrap"><table>
+      <div class="tablewrap records"><table>
         <thead><tr><th>勾選</th><th>操作</th><th>期別</th><th>學號</th><th>姓名</th><th>條</th><th>款</th><th>目</th><th>獎懲事由</th><th>額度</th><th>加重減輕事由</th><th>加重減輕額度</th></tr></thead>
         <tbody id="rBody"></tbody>
       </table></div>
@@ -391,10 +448,12 @@ dialog .actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0;marg
       <p class="note">資料只存在「這台裝置的這個瀏覽器」。換電腦、換瀏覽器或清除瀏覽器網站資料後，需要重新匯入。iPhone 建議用 Safari「加入主畫面」後從主畫面開啟，資料比較不會被系統清掉。</p>
       <button id="wipeAll" type="button" class="solid-danger">清除本機全部資料</button>
     </section>
-    <p class="note" style="text-align:center">版本 2026.10.18f</p>
+    <p class="note" style="text-align:center">版本 2026.10.18h</p>
   </div>
   </main>
 </div>
+
+<button id="toTop" type="button" hidden aria-label="回到頂端" title="回到頂端">↑</button>
 
 <!-- 獎懲編輯視窗 -->
 <dialog id="rEditor" aria-labelledby="rEditTitle">
@@ -439,9 +498,9 @@ dialog .actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0;marg
 })();
 </script>
 <script defer src="./vendor/xlsx.full.min.js?v=0.20.3"></script>
-<script defer src="./js/core.js?v=20261018f"></script>
-<script defer src="./js/store.js?v=20261018f"></script>
-<script defer src="./js/app.js?v=20261018f"></script>
+<script defer src="./js/core.js?v=20261018h"></script>
+<script defer src="./js/store.js?v=20261018h"></script>
+<script defer src="./js/app.js?v=20261018h"></script>
 <script>if ("serviceWorker" in navigator && location.protocol === "https:") window.addEventListener("load", function () { navigator.serviceWorker.register("./sw.js").catch(function () {}); });</script>
 </body>
 </html>

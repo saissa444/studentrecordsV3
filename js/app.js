@@ -185,6 +185,7 @@
     applySecurityUI();
     cohorts = await Store.getJSON("cohorts", []);
     settings = Object.assign(settings, await Store.getJSON("settings", {}));
+    applyViewMode();
     const drafts = await Store.getJSON("drafts", {points: [], reward: []});
     pRecords = drafts.points || []; rRecords = drafts.reward || [];
     const loadTpl = async kind => {
@@ -632,7 +633,8 @@
 
   function pUpdateSelection() {
     for (const r of Array.from(pSelected)) if (!pRecords.includes(r)) pSelected.delete(r);
-    const n = pSelected.size, all = pRecords.length > 0 && n === pRecords.length, some = n > 0 && n < pRecords.length;
+    const n = pSelected.size, visible = pRecords.filter(r => matchesFilter("p", r));
+    const all = visible.length > 0 && visible.every(r => pSelected.has(r)), some = !all && visible.some(r => pSelected.has(r));
     ["", "Bottom"].forEach(suffix => {
       $("pSelected" + suffix).textContent = "已勾選 " + n + " 筆";
       $("pBulkEdit" + suffix).disabled = n === 0;
@@ -651,8 +653,8 @@
   }
   function pSelectAll(event) {
     if (pBulk) pCancelEditing();
-    pSelected.clear();
-    if (event.target.checked) pRecords.forEach(r => pSelected.add(r));
+    // 有篩選時，全選只作用在目前看得到的紀錄
+    pRecords.filter(r => matchesFilter("p", r)).forEach(r => { if (event.target.checked) pSelected.add(r); else pSelected.delete(r); });
     pUpdateSelection();
   }
   $("pSelectAll").addEventListener("change", pSelectAll);
@@ -695,7 +697,9 @@
     $("pEditDetail").value = r.detail || ""; $("pEditError").textContent = "";
     const row = document.createElement("tr"); row.id = "pInlineEditRow";
     const cell = document.createElement("td"); cell.colSpan = 11; row.append(cell);
-    $("pRecords").children[i].after(row); cell.append($("pEditPanel"));
+    const recordRow = $("pRecords").querySelector('tr[data-index="' + i + '"]');
+    expanded.p.add(r); recordRow.classList.add("expanded");
+    recordRow.after(row); cell.append($("pEditPanel"));
     $("pEditPanel").hidden = false;
   }
   function pStartBulkEditing(anchorIndex, position) {
@@ -713,6 +717,10 @@
     if (anchorIndex == null) {
       $(position === "bottom" ? "pBulkBottom" : "pBulkTop").after($("pEditPanel"));
       const row = $("pInlineEditRow"); if (row) row.remove();
+      // 從上方按鈕批次編輯時，不要把第一筆展開
+      expanded.p.delete(first);
+      const firstRow = $("pRecords").querySelector('tr[data-index="' + pRecords.indexOf(first) + '"]');
+      if (firstRow) firstRow.classList.remove("expanded");
     }
   }
   $("pBulkEdit").addEventListener("click", () => pStartBulkEditing(null, "top"));
@@ -747,6 +755,130 @@
     $("pCount").textContent += "（已儲存 " + targets.length + " 筆修改）";
   });
 
+  /* ───────── 預覽清單：精簡／完整、依事由分組、篩選 ───────── */
+  const filters = {p: {cohort: "", text: "", group: ""}, r: {cohort: "", text: "", group: ""}};
+  const expanded = {p: new WeakSet(), r: new WeakSet()};
+  const listRecords = prefix => (prefix === "p" ? pRecords : rRecords);
+  const listBody = prefix => $(prefix === "p" ? "pRecords" : "rBody");
+  const groupKeyOf = {
+    p: r => [r.kind, r.cat, r.reason, r.score.toFixed(1)].join("|"),
+    r: r => [r.article, r.clause, r.item, r.amount].join("|")
+  };
+  function groupLabel(prefix, r) {
+    if (prefix === "p") return r.kind + "｜" + r.reason + "｜" + r.score.toFixed(1) + " 分";
+    return (ARTICLE_LEVELS[r.article] ? r.article + " " + ARTICLE_LEVELS[r.article] : r.article) + "｜" +
+      r.clause + (r.item || "") + "｜" + r.amount;
+  }
+  function matchesFilter(prefix, r) {
+    const f = filters[prefix];
+    if (f.cohort && r.cohort !== f.cohort) return false;
+    if (f.group && groupKeyOf[prefix](r) !== f.group) return false;
+    if (f.text) {
+      const t = core.normalize(f.text);
+      if (![r.name, r.female, r.team, r.school].some(v => core.normalize(v).includes(t))) return false;
+    }
+    return true;
+  }
+  function summaryCell(prefix, r, tr) {
+    const td = document.createElement("td");
+    td.className = "cell-summary"; td.tabIndex = 0; td.setAttribute("role", "button");
+    td.setAttribute("aria-label", "展開或收合 " + r.name + " 的詳細內容");
+    const line1 = document.createElement("div"); line1.className = "sum-line1";
+    const who = document.createElement("span"); who.className = "sum-who";
+    who.textContent = (r.female || r.team || "") + " " + r.name;
+    const amt = document.createElement("span"), chev = document.createElement("span");
+    if (prefix === "p") { amt.className = "sum-amt " + (r.kind === "加分" ? "plus" : "minus"); amt.textContent = (r.kind === "加分" ? "加 " : "扣 ") + r.score.toFixed(1); }
+    else { amt.className = "sum-amt"; amt.textContent = r.article + " " + r.amount; }
+    chev.className = "sum-chev"; chev.textContent = "›";
+    line1.append(cohortTag(r.cohort), who, amt, chev);
+    const line2 = document.createElement("div"); line2.className = "sum-line2";
+    line2.textContent = prefix === "p" ? r.reason + (r.detail ? "｜" + r.detail : "") :
+      r.reason + (r.adjustReason ? "｜加重減輕：" + r.adjustReason + (r.adjustAmount ? " " + r.adjustAmount : "") : "");
+    td.append(line1, line2);
+    if (expanded[prefix].has(r)) tr.classList.add("expanded");
+    const toggle = () => {
+      if (expanded[prefix].has(r)) expanded[prefix].delete(r); else expanded[prefix].add(r);
+      tr.classList.toggle("expanded", expanded[prefix].has(r));
+    };
+    td.addEventListener("click", toggle);
+    td.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(); } });
+    return td;
+  }
+  function renderListTools(prefix) {
+    const records = listRecords(prefix), f = filters[prefix];
+    const labels = core.unique(records.map(r => r.cohort));
+    if (!labels.includes(f.cohort)) f.cohort = "";
+    fillOptions($(prefix + "FilterCohort"), labels, "全部期別");
+    $(prefix + "FilterCohort").value = f.cohort;
+    $(prefix + "FilterCohort").hidden = labels.length < 2 && !f.cohort;
+    $(prefix + "FilterBar").hidden = records.length < 2;
+    if (records.length < 2) { f.text = ""; f.group = ""; $(prefix + "FilterText").value = ""; }
+    if (f.group && !records.some(r => groupKeyOf[prefix](r) === f.group)) f.group = "";
+    applyFilter(prefix);
+  }
+  function renderGroups(prefix) {
+    const records = listRecords(prefix), f = filters[prefix], groups = new Map();
+    records.forEach(r => {
+      const key = groupKeyOf[prefix](r);
+      const g = groups.get(key) || {key, label: groupLabel(prefix, r), names: [], count: 0};
+      g.count++; if (!g.names.includes(r.name)) g.names.push(r.name);
+      groups.set(key, g);
+    });
+    const box = $(prefix + "Groups");
+    box.replaceChildren();
+    Array.from(groups.values()).sort((a, b) => b.count - a.count).forEach(g => {
+      const button = document.createElement("button");
+      button.type = "button"; button.className = "group-item";
+      button.setAttribute("aria-pressed", String(f.group === g.key));
+      const head = document.createElement("div"); head.className = "g-head";
+      const label = document.createElement("span"); label.textContent = g.label;
+      const count = document.createElement("span"); count.className = "g-count"; count.textContent = g.count + " 筆";
+      head.append(label, count);
+      const names = document.createElement("div"); names.className = "g-names";
+      names.textContent = g.names.slice(0, 15).join("、") + (g.names.length > 15 ? "…等 " + g.names.length + " 人" : "");
+      button.append(head, names);
+      button.addEventListener("click", () => { f.group = f.group === g.key ? "" : g.key; applyFilter(prefix); });
+      box.append(button);
+    });
+    $(prefix + "GroupsBox").hidden = !records.length;
+    $(prefix + "GroupsTitle").textContent = "依事由分組（" + groups.size + " 組，點一組可只看該組）";
+  }
+  function applyFilter(prefix) {
+    const records = listRecords(prefix), f = filters[prefix];
+    let shown = 0;
+    Array.from(listBody(prefix).children).forEach(tr => {
+      if (tr.id === "pInlineEditRow") return;
+      const r = records[Number(tr.dataset.index)];
+      const ok = !!r && matchesFilter(prefix, r);
+      tr.hidden = !ok; if (ok) shown++;
+    });
+    const active = !!(f.cohort || f.text || f.group);
+    $(prefix + "FilterInfo").textContent = active ? "目前顯示 " + shown + " / " + records.length + " 筆；匯出時仍包含全部 " + records.length + " 筆。" : "";
+    $(prefix + "FilterClear").hidden = !active;
+    renderGroups(prefix);
+    if (prefix === "p") pUpdateSelection(); else rUpdateSelection();
+  }
+  ["p", "r"].forEach(prefix => {
+    $(prefix + "FilterCohort").addEventListener("change", () => { filters[prefix].cohort = $(prefix + "FilterCohort").value; applyFilter(prefix); });
+    $(prefix + "FilterText").addEventListener("input", () => { filters[prefix].text = $(prefix + "FilterText").value.trim(); applyFilter(prefix); });
+    $(prefix + "FilterClear").addEventListener("click", () => {
+      Object.assign(filters[prefix], {cohort: "", text: "", group: ""});
+      $(prefix + "FilterCohort").value = ""; $(prefix + "FilterText").value = "";
+      applyFilter(prefix);
+    });
+  });
+  function applyViewMode() {
+    const mode = settings.viewMode === "full" ? "full" : "compact";
+    document.querySelectorAll(".tablewrap.records").forEach(el => el.classList.toggle("compact", mode === "compact"));
+    document.querySelectorAll(".view-seg button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.view === mode)));
+  }
+  document.querySelectorAll(".view-seg button").forEach(b => b.addEventListener("click", () => {
+    settings.viewMode = b.dataset.view; saveSettings(); applyViewMode();
+  }));
+  applyViewMode();
+  window.addEventListener("scroll", () => { $("toTop").hidden = window.scrollY < 700; }, {passive: true});
+  $("toTop").addEventListener("click", () => window.scrollTo({top: 0, behavior: "smooth"}));
+
   function cohortSummary(records) {
     const counts = new Map();
     records.forEach(r => counts.set(r.cohort, (counts.get(r.cohort) || 0) + 1));
@@ -758,12 +890,13 @@
     $("pCount").textContent = pRecords.length ? "本次共 " + pRecords.length + " 筆" + cohortSummary(pRecords) : "尚無紀錄";
     $("pRecords").replaceChildren();
     pRecords.forEach((r, i) => {
-      const tr = document.createElement("tr");
+      const tr = document.createElement("tr"); tr.dataset.index = i;
       const selectCell = document.createElement("td"), box = document.createElement("input");
       box.type = "checkbox"; box.dataset.recordIndex = i;
       box.setAttribute("aria-label", "勾選第 " + (i + 1) + " 筆：" + (r.female || "") + " " + r.name);
       box.addEventListener("change", () => { if (pBulk) pCancelEditing(); if (box.checked) pSelected.add(r); else pSelected.delete(r); pUpdateSelection(); });
       selectCell.className = "cell-select"; selectCell.append(box); tr.append(selectCell);
+      tr.append(summaryCell("p", r, tr));
       const cohortCell = document.createElement("td"); cohortCell.className = "cell-cohort"; cohortCell.append(cohortTag(r.cohort)); tr.append(cohortCell);
       [["女生隊號", r.female, "nowrap"], ["建制隊號", r.team, "nowrap"], ["姓名", r.name, "nowrap cell-name"], ["說明", r.detail || "", "wrap"], ["學籍號碼", r.school, "nowrap"], ["類型", r.kind, "nowrap"], ["分數", r.score.toFixed(1), "nowrap"], ["事由", r.reason, "wrap"]].forEach(([label, text, cls]) => {
         const td = document.createElement("td"); td.className = cls; td.dataset.label = label; td.textContent = text; tr.appendChild(td);
@@ -779,7 +912,7 @@
     });
     $("pExport").disabled = !pRecords.length;
     $("pClear").disabled = !pRecords.length;
-    pUpdateSelection(); updateTabCounts();
+    renderListTools("p"); updateTabCounts();
   }
 
   $("pClear").addEventListener("click", () => {
@@ -871,13 +1004,15 @@
 
   function rUpdateSelection() {
     const n = rSelectedRows.size, total = rRecords.length;
+    const visible = rRecords.map((r, i) => i).filter(i => matchesFilter("r", rRecords[i]));
+    const allVisible = visible.length > 0 && visible.every(i => rSelectedRows.has(i)), someVisible = !allVisible && visible.some(i => rSelectedRows.has(i));
     $("rSelected").textContent = "已選取 " + n + " / " + total + " 筆";
     $("rEditSelected").disabled = !n || !rTpl;
     $("rClearRecords").disabled = !total;
     $("rExport").disabled = !total;
     $("rSelectAll").disabled = !total;
-    $("rSelectAll").checked = total > 0 && n === total;
-    $("rSelectAll").indeterminate = n > 0 && n < total;
+    $("rSelectAll").checked = allVisible;
+    $("rSelectAll").indeterminate = someVisible;
   }
   function rUpdateDuplicates() {
     const duplicates = core.duplicateStudents(rRecords);
@@ -889,13 +1024,14 @@
     for (const i of Array.from(rSelectedRows)) if (i >= rRecords.length) rSelectedRows.delete(i);
     $("rBody").replaceChildren();
     rRecords.forEach((record, index) => {
-      const row = document.createElement("tr");
+      const row = document.createElement("tr"); row.dataset.index = index;
       const selectCell = document.createElement("td"), label = document.createElement("label"), checkbox = document.createElement("input");
       label.className = "check-label"; checkbox.type = "checkbox";
       checkbox.checked = rSelectedRows.has(index);
       checkbox.setAttribute("aria-label", "選取 " + record.name + "（" + record.school + "）");
       checkbox.addEventListener("change", () => { if (checkbox.checked) rSelectedRows.add(index); else rSelectedRows.delete(index); row.classList.toggle("selected-record", checkbox.checked); rUpdateSelection(); });
       label.append(checkbox); selectCell.className = "cell-select"; selectCell.append(label); row.append(selectCell);
+      row.append(summaryCell("r", record, row));
       row.classList.toggle("selected-record", checkbox.checked);
       const actionCell = document.createElement("td"); actionCell.className = "nowrap cell-actions";
       const edit = document.createElement("button"), remove = document.createElement("button");
@@ -914,7 +1050,7 @@
       });
       $("rBody").append(row);
     });
-    rUpdateSelection(); rUpdateDuplicates(); updateTabCounts();
+    rUpdateDuplicates(); renderListTools("r"); updateTabCounts();
   }
   function rDelete(index) {
     if (!rRecords[index]) return;
@@ -925,8 +1061,8 @@
     rReport(rRecords.length ? "已刪除 1 筆紀錄；目前共 " + rRecords.length + " 筆。" : "已刪除最後一筆紀錄；可再次批次新增。", "ok");
   }
   $("rSelectAll").addEventListener("change", () => {
-    rSelectedRows.clear();
-    if ($("rSelectAll").checked) rRecords.forEach((r, i) => rSelectedRows.add(i));
+    const checked = $("rSelectAll").checked;
+    rRecords.forEach((r, i) => { if (!matchesFilter("r", r)) return; if (checked) rSelectedRows.add(i); else rSelectedRows.delete(i); });
     rRender();
   });
   $("rClearRecords").addEventListener("click", () => {

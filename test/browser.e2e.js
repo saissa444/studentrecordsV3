@@ -89,9 +89,22 @@ const URL = process.env.APP_URL || "http://localhost:8765/index.html";
   await page.fill("#pDetail", "");
   await page.click("#pAdd");
   await page.waitForFunction(() => document.querySelectorAll("#pRecords tr").length === 3);
-  const last = await page.$eval("#pRecords tr:last-child", tr => tr.innerText);
+  const last = await page.$eval("#pRecords tr:last-child", tr => Array.from(tr.cells).map(td => td.textContent).join(" "));
   assert.match(last, /第45期[\s\S]*002[\s\S]*李小婷[\s\S]*加分[\s\S]*0\.5/);
   assert.match(await page.textContent("#pCount"), /第44期 2 筆、第45期 1 筆/);
+
+  if (!process.env.MOBILE) {
+    step("電腦：操作欄不需左右捲動即可看到");
+    for (const width of [1200, 820]) {
+      await page.setViewportSize({width, height: 900});
+      const wrap = await page.locator("#tab-points .tablewrap").boundingBox();
+      for (const name of ["編輯", "刪除"]) {
+        const box = await page.locator("#pRecords > tr").first().locator("button:has-text('" + name + "')").boundingBox();
+        assert.ok(box.x >= wrap.x && box.x + box.width <= wrap.x + wrap.width + 1, width + "px：" + name + " 按鈕超出可視範圍");
+      }
+    }
+    await page.setViewportSize({width: 1200, height: 900});
+  }
 
   step("加扣分：批次編輯分數");
   await page.check("#pRecords tr:nth-child(1) input[type=checkbox]");
@@ -100,8 +113,44 @@ const URL = process.env.APP_URL || "http://localhost:8765/index.html";
   await page.check("#pApplyScore"); await page.uncheck("#pApplyDetail"); await page.uncheck("#pApplyKind");
   await page.selectOption("#pEditScore", "0.3");
   await page.click("#pSaveEdit");
-  const scores = await page.$$eval("#pRecords tr td:nth-child(9)", tds => tds.map(td => td.textContent));
+  const scores = await page.$$eval("#pRecords tr td[data-label='分數']", tds => tds.map(td => td.textContent));
   assert.deepEqual(scores, ["0.3", "0.3", "0.5"]);
+
+  step("清單工具：分組、搜尋、期別篩選");
+  const visibleRows = sel => page.$$eval(sel + " > tr", trs => trs.filter(tr => !tr.hidden).length);
+  assert.equal(await page.locator("#pGroups .group-item").count(), 2);
+  assert.match(await page.textContent("#pGroups"), /扣分｜63\.內務不整者｜0\.3 分\s*2 筆[\s\S]*林小華、王小美/);
+  await page.click("#pGroups .group-item:has-text('63.內務不整者')");
+  assert.equal(await visibleRows("#pRecords"), 2);
+  assert.match(await page.textContent("#pFilterInfo"), /顯示 2 \/ 3 筆/);
+  // 篩選中按全選，只勾看得到的 2 筆
+  await page.check("#pSelectAll");
+  assert.match(await page.textContent("#pSelected"), /已勾選 2 筆/);
+  await page.uncheck("#pSelectAll");
+  await page.click("#pGroups .group-item:has-text('63.內務不整者')");
+  assert.equal(await visibleRows("#pRecords"), 3);
+  await page.fill("#pFilterText", "李小");
+  assert.equal(await visibleRows("#pRecords"), 1);
+  await page.click("#pFilterClear");
+  await page.selectOption("#pFilterCohort", "第45期");
+  assert.equal(await visibleRows("#pRecords"), 1);
+  await page.click("#pFilterClear");
+  assert.equal(await visibleRows("#pRecords"), 3);
+  if (process.env.MOBILE) {
+    step("手機：精簡列表、點開詳細、切換完整模式");
+    assert.equal(await page.getAttribute(".view-seg button[data-view=compact]", "aria-pressed"), "true");
+    const firstRow = page.locator("#pRecords > tr").first();
+    assert.equal(await firstRow.locator("td[data-label='學籍號碼']").isVisible(), false);
+    const compactHeight = (await firstRow.boundingBox()).height;
+    assert.ok(compactHeight < 90, "精簡列高度 " + compactHeight);
+    await firstRow.locator(".cell-summary").click();
+    assert.equal(await firstRow.locator("td[data-label='學籍號碼']").isVisible(), true);
+    assert.equal(await firstRow.locator("button:has-text('編輯')").isVisible(), true);
+    await firstRow.locator(".cell-summary").click();
+    await page.click("#tab-points .view-seg button[data-view=full]");
+    assert.equal(await page.locator("#pRecords > tr").nth(1).locator("td[data-label='學籍號碼']").isVisible(), true);
+    await page.click("#tab-points .view-seg button[data-view=compact]");
+  }
 
   step("加扣分匯出");
   const [dl1] = await Promise.all([page.waitForEvent("download"), page.click("#pExport")]);
@@ -134,6 +183,7 @@ const URL = process.env.APP_URL || "http://localhost:8765/index.html";
   assert.match(rRows[2], /第44期[\s\S]*林小華[\s\S]*申誡一次/);
   assert.match(await page.textContent("#rDup"), /李小婷（第45期/);
   step("獎懲：編輯視窗");
+  if (process.env.MOBILE) await page.click("#rBody tr:nth-child(2) .cell-summary");
   await page.click("#rBody tr:nth-child(2) button:has-text('編輯')");
   assert.match(await page.textContent("#rEditClause"), /第17款｜（分 2 目/);
   assert.match(await page.textContent("#rEditItem"), /第2目｜測試事由丙。/);
