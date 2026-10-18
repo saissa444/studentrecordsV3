@@ -919,10 +919,16 @@
     else { amt.className = "sum-amt"; amt.textContent = r.article + " " + r.amount; }
     chev.className = "sum-chev"; chev.textContent = "›";
     line1.append(cohortTag(r.cohort), who, amt, chev);
-    const line2 = document.createElement("div"); line2.className = "sum-line2";
-    line2.textContent = prefix === "p" ? r.reason + (r.detail ? "｜" + r.detail : "") :
-      r.reason + (r.adjustReason ? "｜加重減輕：" + r.adjustReason + (r.adjustAmount ? " " + r.adjustAmount : "") : "");
-    td.append(line1, line2);
+    // 小字分兩行完整顯示：事由一行、說明一行（獎懲為獎懲事由與加重減輕）
+    const subLine = (label, text) => {
+      const div = document.createElement("div"); div.className = "sum-line2";
+      const b = document.createElement("span"); b.className = "sum-label"; b.textContent = label + "：";
+      div.append(b, document.createTextNode(text));
+      return div;
+    };
+    td.append(line1, subLine("事由", r.reason));
+    if (prefix === "p" && r.detail) td.append(subLine("說明", r.detail));
+    if (prefix === "r" && r.adjustReason) td.append(subLine("加重減輕", r.adjustReason + (r.adjustAmount ? " " + r.adjustAmount : "")));
     if (expanded[prefix].has(r)) tr.classList.add("expanded");
     const toggle = () => {
       if (expanded[prefix].has(r)) expanded[prefix].delete(r); else expanded[prefix].add(r);

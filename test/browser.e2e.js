@@ -220,6 +220,8 @@ let rDupBefore = 0;
   await page.click(box(1), {modifiers: ["Shift"]});      // Shift 取消到第 1 筆 → 全部取消
   assert.match(await page.textContent("#pSelected"), /已勾選 0 筆/);
   const center = async n => { const b = await page.locator("#pRecords > tr:nth-child(" + n + ") td.cell-select").boundingBox(); return [b.x + b.width / 2, b.y + b.height / 2]; };
+  // 把第 1 筆捲到期別列下方，確保 1～3 筆的勾選框都在畫面內
+  await page.locator("#pRecords > tr:nth-child(1)").evaluate(el => window.scrollBy(0, el.getBoundingClientRect().top - 140));
   const [x1, y1] = await center(1), [x3, y3] = await center(3);
   await page.mouse.move(x1, y1); await page.mouse.down();
   await page.mouse.move(x3, y3, {steps: 8}); await page.mouse.up();
