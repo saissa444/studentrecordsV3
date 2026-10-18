@@ -139,10 +139,10 @@ let rDupBefore = 0;
   assert.match(await multiEdit.getAttribute("title"), /一次編輯勾選的 2 筆/);
   assert.equal(await page.getAttribute("#pRecords > tr:nth-child(3) button[data-edit-index]", "title"), "");
   assert.match(await page.textContent("#tab-points .bulk-hint"), /一次處理這 2 筆/);
-  assert.equal(await page.isVisible("#selBar"), true);
+  assert.equal(await page.isVisible("#selBar"), !!process.env.MOBILE); // 懸浮列只在手機卡片模式出現
   assert.match(await page.textContent("#selBarCount"), /已勾選 2 筆/);
-  assert.equal(await page.isVisible("#selBarEdit"), true);
-  assert.equal(await page.isVisible("#selBarDelete"), true);
+  assert.equal(await page.isVisible("#selBarEdit"), !!process.env.MOBILE); // 懸浮列只在手機卡片模式出現
+  assert.equal(await page.isVisible("#selBarDelete"), !!process.env.MOBILE); // 懸浮列只在手機卡片模式出現
   if (process.env.MOBILE) {
     // 手機：懸浮列不超出畫面、不壓到回頂端按鈕，並用懸浮列的「編輯」開始編輯
     const bar = await page.locator("#selBar").boundingBox();
@@ -217,18 +217,20 @@ let rDupBefore = 0;
   assert.equal(await page.isVisible("#selBar"), false);
   await page.click(box(1));
   // 只勾 1 筆也會出現懸浮列（編輯／刪除／取消勾選）
-  assert.equal(await page.isVisible("#selBar"), true);
+  assert.equal(await page.isVisible("#selBar"), !!process.env.MOBILE); // 懸浮列只在手機卡片模式出現
   assert.match(await page.textContent("#selBarCount"), /已勾選 1 筆/);
-  assert.equal(await page.isVisible("#selBarEdit"), true);
+  assert.equal(await page.isVisible("#selBarEdit"), !!process.env.MOBILE); // 懸浮列只在手機卡片模式出現
   // 懸浮列在最後勾選那一筆的正下方，且不遮住下一筆的勾選框
   await page.waitForTimeout(80);
-  const rowBox = await page.locator("#pRecords > tr:nth-child(1)").boundingBox(), barBox = await page.locator("#selBar").boundingBox();
-  const nextCheck = await page.locator(box(2)).boundingBox();
-  if (await page.$eval("#selBar", el => el.classList.contains("anchored"))) {
-    assert.ok(Math.abs(barBox.y - (rowBox.y + rowBox.height)) < 12, "懸浮列不在勾選列正下方");
-    assert.ok(barBox.x >= nextCheck.x + nextCheck.width - 1, "懸浮列遮住下一筆的勾選框");
+  if (process.env.MOBILE) {
+    const rowBox = await page.locator("#pRecords > tr:nth-child(1)").boundingBox(), barBox = await page.locator("#selBar").boundingBox();
+    const nextCheck = await page.locator(box(2)).boundingBox();
+    if (await page.$eval("#selBar", el => el.classList.contains("anchored"))) {
+      assert.ok(Math.abs(barBox.y - (rowBox.y + rowBox.height)) < 12, "懸浮列不在勾選列正下方");
+      assert.ok(barBox.x >= nextCheck.x + nextCheck.width - 1, "懸浮列遮住下一筆的勾選框");
+    }
   }
-  assert.equal(await page.isVisible("#selBarDelete"), true);
+  assert.equal(await page.isVisible("#selBarDelete"), !!process.env.MOBILE); // 懸浮列只在手機卡片模式出現
   await page.click(box(3), {modifiers: ["Shift"]});
   assert.match(await page.textContent("#pSelected"), /已勾選 3 筆/);
   await page.click(box(3));                              // 取消第 3 筆，並以它為起點

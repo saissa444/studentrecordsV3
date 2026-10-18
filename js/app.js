@@ -348,7 +348,9 @@
   }
   function updateSelBar() {
     const tab = settings.tab, n = tab === "points" ? pSelected.size : tab === "reward" ? rSelectedRows.size : 0;
-    $("selBar").hidden = n < 1 || $("app").hidden; // 勾選 1 筆以上就顯示
+    // 只在手機／平板的卡片模式顯示（電腦的表格模式直接用列上的編輯、刪除）
+    const cardLayout = window.matchMedia("(max-width: 1023px)").matches;
+    $("selBar").hidden = n < 1 || $("app").hidden || !cardLayout;
     $("selBarCount").textContent = "已勾選 " + n + " 筆";
     $("selBarEdit").disabled = tab === "points" ? !pTpl : !rTpl;
     positionSelBar();
@@ -378,7 +380,7 @@
   }
   const scheduleSelBar = () => { cancelAnimationFrame(selBarFrame); selBarFrame = requestAnimationFrame(positionSelBar); };
   window.addEventListener("scroll", scheduleSelBar, {passive: true});
-  window.addEventListener("resize", scheduleSelBar);
+  window.addEventListener("resize", () => { updateSelBar(); scheduleSelBar(); });
   if (window.ResizeObserver) {
     const ro = new ResizeObserver(scheduleSelBar);
     ro.observe($("pRecords")); ro.observe($("rBody"));
