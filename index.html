@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>學生加扣分・獎懲登錄</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#234e83">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="加扣分獎懲">
+<link rel="apple-touch-icon" href="./icons/icon-180.png">
+<style>
+:root{--ink:#1d2939;--muted:#5b6b82;--line:#dce4ef;--bg:#f3f5f9;--card:#fff;--brand:#234e83;--brand-2:#2b5f9e;--soft:#eef4fc;--err:#ae2530;--ok:#127348;--warn:#8a4b08;--cohort:#234e83;font-family:system-ui,-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif;color:var(--ink);background:var(--bg)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg)}
+[hidden]{display:none!important}
+main{max-width:1050px;margin:0 auto;padding:4px 14px 40px}
+section{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;margin:16px 0}
+h1{font-size:22px;margin:0}
+h2{font-size:18px;margin:0 0 12px}
+h3{font-size:16px;margin:0 0 8px}
+label{display:block;font-weight:650;margin:13px 0 6px}
+input,select,textarea,button{font:inherit}
+input,select,textarea{width:100%;padding:11px 12px;border:1px solid #c5d0de;border-radius:9px;font-size:16px;background:#fff;color:var(--ink)}
+textarea{min-height:90px;resize:vertical}
+select{text-overflow:ellipsis}
+button,.button{display:inline-block;min-height:44px;padding:10px 18px;border:0;border-radius:10px;background:var(--brand);color:#fff;font-weight:650;cursor:pointer;margin:8px 8px 4px 0;text-decoration:none}
+button.secondary{background:#e7edf6;color:var(--brand)}
+button.danger{background:#fff0ee;color:#b42318;border:1px solid #f3c4bd}
+button.solid-danger{background:var(--err);color:#fff}
+button:disabled{opacity:.45;cursor:not-allowed}
+input[type="checkbox"]{width:22px;height:22px;padding:0;vertical-align:middle;accent-color:var(--brand);flex-shrink:0}
+.muted,.note{color:var(--muted);font-size:13.5px;line-height:1.7}
+.err{color:var(--err);white-space:pre-wrap}
+.ok{color:var(--ok)}
+.status{background:#eef5ff;border-radius:9px;padding:11px 13px;margin-top:12px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}
+.status.ok{background:#ebf8f1;color:var(--ok)}
+.status.error{background:#fff1f0;color:var(--err)}
+.status.warning{background:#fff7e6;color:var(--warn)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:640px){.grid{grid-template-columns:1fr}section{padding:15px}}
+.actions{display:flex;gap:4px 8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+
+/* 鎖定畫面 */
+#lockScreen{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:20px}
+.lock-card{width:min(440px,100%);margin:0}
+.lock-card h1{font-size:22px;margin-bottom:6px}
+.lock-badge{display:inline-flex;align-items:center;gap:6px;background:var(--soft);color:var(--brand);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:650;margin-bottom:12px}
+
+/* 頁首與期別列 */
+.topbar{background:var(--brand);color:#fff}
+.topbar-inner{max-width:1050px;margin:0 auto;padding:12px 14px;display:flex;align-items:center;gap:12px}
+.topbar h1{flex:1;font-size:19px}
+.topbar small{display:block;font-weight:400;opacity:.8;font-size:12.5px;margin-top:2px}
+.topbar button{background:rgba(255,255,255,.16);margin:0;min-height:40px;padding:8px 14px}
+.cohort-bar{position:sticky;top:0;z-index:20;background:#fff;border-bottom:3px solid var(--cohort);box-shadow:0 2px 10px rgba(16,33,61,.06)}
+.cohort-inner{max-width:1050px;margin:0 auto;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.cohort-label{font-weight:700;font-size:14px;color:var(--muted)}
+.cohort-buttons{display:flex;gap:8px;flex-wrap:wrap}
+.cohort-btn{margin:0;min-height:42px;padding:8px 16px;border-radius:999px;background:#fff;color:var(--c);border:2px solid var(--c);font-weight:700}
+.cohort-btn[aria-checked="true"]{background:var(--c);color:#fff;box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 25%,transparent)}
+.cohort-btn small{font-weight:500;opacity:.85;margin-left:4px}
+.cohort-empty{color:var(--err);font-weight:650}
+.tabs{max-width:1050px;margin:12px auto 0;padding:0 14px;display:flex;gap:6px;overflow-x:auto}
+.tab{margin:0;background:#e3e9f2;color:var(--brand);border-radius:10px 10px 0 0;min-height:44px;white-space:nowrap}
+.tab[aria-selected="true"]{background:var(--card);color:var(--ink);box-shadow:inset 0 3px 0 var(--brand)}
+.tab .count{display:inline-block;min-width:22px;padding:0 6px;margin-left:6px;border-radius:999px;background:var(--brand);color:#fff;font-size:12px;line-height:20px}
+.tab .count:empty{display:none}
+.tabpanel>section:first-child{margin-top:0;border-top-left-radius:0}
+.cohort-tag{display:inline-block;padding:2px 9px;border-radius:999px;color:#fff;background:var(--c,#64748b);font-size:12.5px;font-weight:650;white-space:nowrap}
+.input-cohort{display:flex;align-items:center;gap:8px;margin:2px 0 8px;font-size:14px;color:var(--muted)}
+
+/* 學生辨識 */
+.check-panel{margin-top:12px;padding:12px 14px;background:#f8fafc;border:1px solid var(--line);border-radius:10px;line-height:1.75;font-size:14.5px}
+.student-row{padding:7px 0;border-bottom:1px solid var(--line);white-space:pre-wrap;overflow-wrap:anywhere}
+.student-row:last-of-type{border-bottom:0}
+.student-row.error{color:var(--err)}
+
+/* 加扣分：常用與瀏覽 */
+.reason-browser{margin:12px 0;border:1px solid #c7d9f0;border-radius:12px;padding:12px;background:#f7faff}
+.reason-browser summary{cursor:pointer;font-weight:650;padding:8px 0}
+.reason-results{max-height:360px;overflow-y:auto;overscroll-behavior:contain}
+.reason-results h3{font-size:15px;margin:16px 0 6px}
+.reason-choice{display:block;width:100%;margin:6px 0;text-align:left;background:#fff;color:var(--brand);border:1px solid #c7d9f0;font-size:16px;line-height:1.5;overflow-wrap:anywhere;font-weight:600}
+.reason-choice[aria-pressed="true"]{background:#e0edff;border:2px solid var(--brand)}
+.reason-choice small{display:block;font-weight:400;color:var(--muted)}
+.reason-choice:focus-visible,summary:focus-visible,button:focus-visible{outline:3px solid #d58b00;outline-offset:2px}
+.reason-favorites{margin:10px 0 16px;padding:12px;background:#fff8e8;border:1px solid #ead5a4;border-radius:10px}
+
+/* 表格 */
+.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:9px;border-bottom:1px solid #e7eaf0;text-align:left;vertical-align:top}
+th{background:#eef3f9;white-space:nowrap;position:sticky;top:0}
+td.wrap{min-width:200px;max-width:380px;white-space:pre-wrap;overflow-wrap:anywhere}
+td.nowrap{white-space:nowrap}
+tr.selected-record{background:var(--soft)}
+td button{margin:2px 4px 2px 0;min-height:38px;padding:6px 12px}
+.bulk-tools{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;margin:10px 0}
+.check-label{display:inline-flex;align-items:center;gap:8px;min-height:44px;margin:0;font-weight:500}
+.editbox{background:var(--soft);border:1px solid #c7d9f0;border-radius:12px;padding:16px;margin:12px 0}
+.edit-field-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.edit-field-heading .bulk-toggle{white-space:nowrap;font-size:14px;font-weight:400;margin:13px 0 6px}
+.summary-line{font-weight:650}
+
+dialog{width:min(620px,calc(100% - 24px));max-height:85vh;max-height:85dvh;border:1px solid #b8c7d9;border-radius:14px;padding:20px;overflow:auto;color:var(--ink)}
+dialog::backdrop{background:#10213d80}
+.edit-group{margin:14px 0;padding:12px;border:1px solid var(--line);border-radius:10px}
+dialog .actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0;margin-bottom:-12px;border-top:1px solid var(--line)}
+
+/* 設定 */
+.cohort-card{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;border:1px solid var(--line);border-left:6px solid var(--c);border-radius:10px;margin:10px 0}
+.cohort-card .info{flex:1;min-width:200px;line-height:1.6}
+.cohort-card .info strong{font-size:17px;color:var(--c)}
+.cohort-card button{margin:0}
+.pending{border:2px dashed #9db6d6;border-radius:12px;padding:14px;margin-top:12px;background:#f7faff}
+.tpl-row{padding:12px 0;border-bottom:1px solid var(--line)}
+.tpl-row:last-child{border-bottom:0}
+.file-button{position:relative;overflow:hidden}
+.file-button input{position:absolute;inset:0;opacity:0;cursor:pointer}
+</style>
+</head>
+<body>
+
+<!-- ───────── 鎖定／首次設定 ───────── -->
+<div id="lockScreen">
+  <section class="lock-card">
+    <span class="lock-badge">🔒 資料只存在這台裝置</span>
+    <h1>學生加扣分・獎懲登錄</h1>
+    <div id="bootStatus" class="status" role="status">程式載入中…</div>
+    <noscript><p class="err">請啟用 JavaScript。</p></noscript>
+
+    <form id="setupForm" hidden autocomplete="off">
+      <p class="note">第一次在這台裝置使用，請設定一組<strong>開啟密碼</strong>。之後匯入的名冊與範本都會用這組密碼加密，存在這個瀏覽器裡，不會上傳。每次開啟 App 時輸入密碼即可使用，不必再匯入檔案。</p>
+      <label for="setupPw">開啟密碼（至少 6 個字元）</label>
+      <input id="setupPw" type="password" autocomplete="new-password" minlength="6" required>
+      <label for="setupPw2">再輸入一次</label>
+      <input id="setupPw2" type="password" autocomplete="new-password" minlength="6" required>
+      <p class="note">⚠️ 密碼忘記無法找回，只能清除本機資料後重新匯入名冊。</p>
+      <button type="submit" id="setupBtn">建立並開始使用</button>
+      <p id="setupStatus" class="err" role="alert"></p>
+    </form>
+
+    <form id="unlockForm" hidden autocomplete="off">
+      <label for="unlockPw">開啟密碼</label>
+      <input id="unlockPw" type="password" autocomplete="current-password" required>
+      <button type="submit" id="unlockBtn">解鎖</button>
+      <p id="unlockStatus" class="err" role="alert"></p>
+      <details>
+        <summary class="note">忘記密碼？</summary>
+        <p class="note">密碼無法找回。可以清除這台裝置上本 App 的所有資料（名冊、範本、尚未匯出的紀錄），再重新設定密碼並匯入。</p>
+        <button type="button" id="forgotWipe" class="solid-danger">清除本機全部資料</button>
+      </details>
+    </form>
+  </section>
+</div>
+
+<!-- ───────── 主程式 ───────── -->
+<div id="app" hidden>
+  <header class="topbar"><div class="topbar-inner">
+    <h1>學生加扣分・獎懲登錄<small>名冊與範本已加密保存在這台裝置</small></h1>
+    <button id="lockBtn" type="button">🔒 鎖定</button>
+  </div></header>
+
+  <div class="cohort-bar" id="cohortBar"><div class="cohort-inner">
+    <span class="cohort-label">目前期別</span>
+    <div id="cohortButtons" class="cohort-buttons" role="radiogroup" aria-label="目前期別"></div>
+    <span id="cohortEmpty" class="cohort-empty" hidden>尚未匯入名冊，請到「名冊與設定」匯入</span>
+  </div></div>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tabBtn-points" aria-controls="tab-points" data-tab="points">加扣分<span class="count" id="pTabCount"></span></button>
+    <button class="tab" role="tab" id="tabBtn-reward" aria-controls="tab-reward" data-tab="reward">獎懲<span class="count" id="rTabCount"></span></button>
+    <button class="tab" role="tab" id="tabBtn-settings" aria-controls="tab-settings" data-tab="settings">名冊與設定</button>
+  </nav>
+
+  <main>
+  <!-- ═════════ 加扣分 ═════════ -->
+  <div id="tab-points" class="tabpanel" role="tabpanel" aria-labelledby="tabBtn-points" hidden>
+    <section>
+      <h2>① 批次登錄</h2>
+      <div class="input-cohort">查詢對象：<span class="cohort-tag active-cohort-tag"></span>（只在這一期的名冊中查找）</div>
+      <label for="pIds">學生查詢（女生隊號、建制隊號、姓名可混合輸入）</label>
+      <textarea id="pIds" style="min-height:150px" placeholder="例如：002、440000、王小明、011（均為示意）&#10;也可輸入：內務櫃未確實上鎖 002 011"></textarea>
+      <div id="pCheck" class="check-panel" aria-live="polite">尚未輸入學生資料</div>
+      <p class="note">可用頓號、逗號、空白或換行分隔；女生隊號可輸入 2 或 002，也可輸入範圍 002-010。同一批次相同學生只登錄一次。學生前可加註記（例如「內務櫃未確實上鎖 002 011」或「文書公差：002」），註記會以括號附加在該生說明後方。</p>
+      <div class="grid">
+        <div><label for="pKind">加扣分類型</label><select id="pKind"><option>加分</option><option>扣分</option></select></div>
+        <div><label for="pScore">分數（0.1 至 0.8，每次 0.1 分）</label><select id="pScore"></select></div>
+      </div>
+      <div class="reason-favorites"><h3>常用分類</h3><p id="pFavoriteHint" class="note"></p><div id="pFavorites" role="group" aria-label="常用分類"></div></div>
+      <label for="pDetail">說明（可自行編輯）</label>
+      <textarea id="pDetail" placeholder="例如：擔任公差，工作認真負責。"></textarea>
+      <label for="pCategory">加減分依據（歸類）</label><select id="pCategory"></select>
+      <label for="pItem">事蹟說明</label><select id="pItem"></select>
+      <details class="reason-browser" id="pBrowser">
+        <summary>瀏覽／搜尋全部分類的事蹟說明</summary>
+        <label for="pSearch">搜尋事蹟或分類名稱</label>
+        <input id="pSearch" type="search" placeholder="輸入關鍵字，例如：內務、公差" autocomplete="off">
+        <p class="note">顯示目前加扣分類型的所有分類；點選事蹟會自動帶入正確歸類。</p>
+        <p id="pResultCount" class="note" role="status" aria-live="polite"></p>
+        <div id="pResults" class="reason-results" role="group" aria-label="全分類事蹟說明"></div>
+      </details>
+      <p id="pError" class="err" role="status"></p>
+      <button id="pAdd" type="button">批次新增紀錄</button>
+    </section>
+
+    <section>
+      <h2>② 預覽及匯出</h2>
+      <p id="pCount" class="summary-line">尚無紀錄</p>
+      <div id="pEditPanel" class="editbox" hidden>
+        <h3 id="pEditTitle">編輯單筆紀錄</h3>
+        <p id="pEditHint" class="note">僅修改目前選取的學生，不影響其他紀錄。</p>
+        <div class="edit-field-heading"><label for="pEditDetail">說明（可自行編輯）</label><label class="bulk-toggle" hidden><input type="checkbox" id="pApplyDetail"> 一起編輯</label></div>
+        <textarea id="pEditDetail"></textarea>
+        <div class="grid">
+          <div><div class="edit-field-heading"><label for="pEditKind">加扣分類型</label><label class="bulk-toggle" hidden><input type="checkbox" id="pApplyKind"> 一起編輯</label></div><select id="pEditKind"><option>加分</option><option>扣分</option></select></div>
+          <div><div class="edit-field-heading"><label for="pEditScore">分數</label><label class="bulk-toggle" hidden><input type="checkbox" id="pApplyScore"> 一起編輯</label></div><select id="pEditScore"></select></div>
+        </div>
+        <div id="pEditReasonFields">
+          <div class="reason-favorites"><h3>常用分類</h3><p id="pEditFavoriteHint" class="note"></p><div id="pEditFavorites" role="group" aria-label="常用分類"></div></div>
+          <label for="pEditCategory">加減分依據（歸類）</label><select id="pEditCategory"></select>
+          <label for="pEditItem">事蹟說明（事由）</label><select id="pEditItem"></select>
+          <details class="reason-browser" id="pEditBrowser">
+            <summary>瀏覽／搜尋全部分類的事蹟說明</summary>
+            <label for="pEditSearch">搜尋事蹟或分類名稱</label>
+            <input id="pEditSearch" type="search" placeholder="輸入關鍵字，例如：內務、公差" autocomplete="off">
+            <p id="pEditResultCount" class="note" role="status" aria-live="polite"></p>
+            <div id="pEditResults" class="reason-results" role="group" aria-label="全分類事蹟說明"></div>
+          </details>
+        </div>
+        <p id="pEditError" class="err" role="alert"></p>
+        <div class="actions"><button id="pSaveEdit" type="button">儲存修改</button><button id="pCancelEdit" type="button" class="secondary">取消</button></div>
+      </div>
+      <div id="pBulkTop" class="bulk-tools"><label class="check-label"><input id="pSelectAll" type="checkbox"> 全選</label><span id="pSelected" role="status">已勾選 0 筆</span><button id="pBulkEdit" type="button" disabled>編輯勾選紀錄</button><button id="pBulkDelete" type="button" class="danger" disabled>刪除勾選紀錄</button></div>
+      <div class="tablewrap"><table>
+        <thead><tr><th>勾選</th><th>期別</th><th>女生隊號</th><th>建制隊號</th><th>姓名</th><th>說明</th><th>學籍號碼</th><th>類型</th><th>分數</th><th>事由</th><th>操作</th></tr></thead>
+        <tbody id="pRecords"></tbody>
+      </table></div>
+      <div id="pBulkBottom" class="bulk-tools"><label class="check-label"><input id="pSelectAllBottom" type="checkbox"> 全選</label><span id="pSelectedBottom" role="status">已勾選 0 筆</span><button id="pBulkEditBottom" type="button" disabled>編輯勾選紀錄</button><button id="pBulkDeleteBottom" type="button" class="danger" disabled>刪除勾選紀錄</button></div>
+      <div class="actions">
+        <button id="pExport" type="button" disabled>下載學校格式 Excel (.xlsx)</button>
+        <button id="pClear" type="button" class="secondary" disabled>清空紀錄</button>
+      </div>
+      <p class="note">尚未匯出的紀錄也會加密保存在本機，重新開啟後仍在。匯出以學校範本為底，只改寫「工作表1」的資料列，其餘格式不變；兩期學生可放在同一份檔案。正式匯入學校系統前請再檢查一次。</p>
+    </section>
+  </div>
+
+  <!-- ═════════ 獎懲 ═════════ -->
+  <div id="tab-reward" class="tabpanel" role="tabpanel" aria-labelledby="tabBtn-reward" hidden>
+    <section>
+      <h2>① 批次選擇學生</h2>
+      <div class="input-cohort">查詢對象：<span class="cohort-tag active-cohort-tag"></span>（只在這一期的名冊中查找）</div>
+      <label for="rIds">輸入學生（可多筆）</label>
+      <textarea id="rIds" placeholder="例如：002、449999、王小明（可混合輸入）&#10;也可輸入：文書公差：002"></textarea>
+      <div id="rCheck" class="check-panel" aria-live="polite">尚未輸入學生資料</div>
+      <p class="note">支援女生隊號、建制隊號、姓名混合輸入，可用換行、逗號、頓號或空格分隔，也可輸入範圍（例如 002-010）。同批或不同批次的重複學生均會新增，預覽下方會以紅字顯示重複次數。學生前可加註記（例如「文書公差002」「文書公差：002」），批次新增時會在該筆事由後加上「（文書公差）」。</p>
+    </section>
+    <section>
+      <h2>② 設定共同獎懲內容</h2>
+      <p class="note">依序選擇條、款、目，系統會帶入範本事由，帶入後可自行修改。</p>
+      <label for="rArticle">1. 獎懲依據（條）</label><select id="rArticle"></select>
+      <label for="rClause">2. 獎懲依據（款）</label><select id="rClause" disabled></select>
+      <label for="rItem">3. 獎懲依據（目）</label><select id="rItem" disabled></select>
+      <label for="rReason">4. 獎懲事由（自動帶入後可編輯）</label><textarea id="rReason" disabled placeholder="選擇條、款、目後自動帶入，可自行修改內容"></textarea>
+      <label for="rAmount">5. 額度（固定，自動帶入）</label><input id="rAmount" type="text" readonly disabled placeholder="選擇條款目後自動帶入固定額度">
+      <label for="rAdjustReason">6. 加重減輕事由（若無可不選擇）</label><select id="rAdjustReason"></select>
+      <label for="rAdjustAmount">7. 加重減輕額度（若無可不選擇）</label><select id="rAdjustAmount"></select>
+      <div class="actions">
+        <button id="rAdd" type="button" disabled>批次新增至預覽</button>
+        <button id="rClearInput" type="button" class="secondary">清除輸入</button>
+      </div>
+    </section>
+    <section>
+      <h2>③ 預覽與匯出</h2>
+      <div id="rResult" role="status" class="status">尚未新增紀錄</div>
+      <div class="bulk-tools"><label class="check-label"><input type="checkbox" id="rSelectAll" disabled> 全選</label><span id="rSelected" role="status">已選取 0 筆</span><button id="rEditSelected" type="button" disabled>編輯已選取</button></div>
+      <div class="tablewrap"><table>
+        <thead><tr><th>勾選</th><th>操作</th><th>期別</th><th>學號</th><th>姓名</th><th>條</th><th>款</th><th>目</th><th>獎懲事由</th><th>額度</th><th>加重減輕事由</th><th>加重減輕額度</th></tr></thead>
+        <tbody id="rBody"></tbody>
+      </table></div>
+      <div id="rDup" role="status" class="status error" hidden></div>
+      <div class="actions">
+        <button id="rExport" type="button" disabled>匯出 Excel</button>
+        <button id="rClearRecords" type="button" class="danger" disabled>清空紀錄</button>
+      </div>
+      <p class="note">尚未匯出的紀錄也會加密保存在本機。iPhone 下載後可到「檔案」App 開啟。</p>
+    </section>
+  </div>
+
+  <!-- ═════════ 設定 ═════════ -->
+  <div id="tab-settings" class="tabpanel" role="tabpanel" aria-labelledby="tabBtn-settings" hidden>
+    <section>
+      <h2>期別名冊</h2>
+      <p class="note">每一期各匯入一份名冊（讀取「姓名查詢」工作表）。不同期的女生隊號可以重複，查詢時只會在上方選定的期別裡找。換學期或名冊有異動時，用「更新名冊」覆蓋即可。</p>
+      <div id="cohortList"></div>
+      <span class="button file-button">＋ 匯入名冊 Excel<input type="file" id="rosterFile" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" aria-label="匯入名冊 Excel"></span>
+      <div id="rosterPending" class="pending" hidden>
+        <p id="rosterPendingInfo" class="summary-line"></p>
+        <label for="rosterTarget">存成</label>
+        <select id="rosterTarget"></select>
+        <div id="rosterLabelWrap"><label for="rosterLabel">期別名稱</label><input id="rosterLabel" placeholder="例如：第45期"></div>
+        <p id="rosterPendingWarn" class="err"></p>
+        <div class="actions"><button id="rosterSave" type="button">儲存名冊</button><button id="rosterCancel" type="button" class="secondary">取消</button></div>
+      </div>
+      <div id="rosterStatus" class="status" role="status" hidden></div>
+    </section>
+
+    <section>
+      <h2>學校範本</h2>
+      <p class="note">範本兩期共用，各匯入一次即可；學校更新範本時再重新匯入。</p>
+      <div class="tpl-row">
+        <h3>加扣分範本（外收發加扣分匯入.xlsx）</h3>
+        <div id="pTplStatus" class="status">尚未匯入</div>
+        <span class="button file-button secondary-file">選擇加扣分範本<input type="file" id="pTplFile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="選擇加扣分範本"></span>
+      </div>
+      <div class="tpl-row">
+        <h3>獎懲範本</h3>
+        <div id="rTplStatus" class="status">尚未匯入</div>
+        <span class="button file-button secondary-file">選擇獎懲範本<input type="file" id="rTplFile" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" aria-label="選擇獎懲範本"></span>
+      </div>
+    </section>
+
+    <section>
+      <h2>安全與本機資料</h2>
+      <label for="autoLock">閒置自動鎖定</label>
+      <select id="autoLock">
+        <option value="5">5 分鐘</option><option value="10">10 分鐘</option><option value="15">15 分鐘</option>
+        <option value="30">30 分鐘</option><option value="60">60 分鐘</option><option value="0">不自動鎖定（僅限個人裝置）</option>
+      </select>
+      <p class="note">在公用電腦上，離開座位前請按右上角「鎖定」。鎖定後必須輸入密碼才能看到學生資料。</p>
+
+      <details>
+        <summary><strong>變更開啟密碼</strong></summary>
+        <form id="pwForm" autocomplete="off">
+          <label for="pwOld">目前密碼</label><input id="pwOld" type="password" autocomplete="current-password" required>
+          <label for="pwNew">新密碼（至少 6 個字元）</label><input id="pwNew" type="password" autocomplete="new-password" minlength="6" required>
+          <label for="pwNew2">再輸入一次新密碼</label><input id="pwNew2" type="password" autocomplete="new-password" minlength="6" required>
+          <button type="submit">變更密碼</button>
+          <p id="pwStatus" role="status"></p>
+        </form>
+      </details>
+
+      <p id="persistStatus" class="note"></p>
+      <p class="note">資料只存在「這台裝置的這個瀏覽器」。換電腦、換瀏覽器或清除瀏覽器網站資料後，需要重新匯入。iPhone 建議用 Safari「加入主畫面」後從主畫面開啟，資料比較不會被系統清掉。</p>
+      <button id="wipeAll" type="button" class="solid-danger">清除本機全部資料</button>
+    </section>
+    <p class="note" style="text-align:center">版本 2026.10.18c</p>
+  </div>
+  </main>
+</div>
+
+<!-- 獎懲編輯視窗 -->
+<dialog id="rEditor" aria-labelledby="rEditTitle">
+<form id="rEditForm">
+<h2 id="rEditTitle">編輯紀錄</h2>
+<p id="rEditSummary" class="note"></p>
+<p class="note">只套用勾選的欄位，其餘保留原值。學生資料依名冊顯示；獎懲事由帶入後可自行修改。</p>
+<div class="edit-group">
+<label class="check-label"><input type="checkbox" id="rEditApplyRule">修改獎懲依據（條款目）</label>
+<label for="rEditArticle">獎懲依據（條）</label><select id="rEditArticle"></select>
+<label for="rEditClause">獎懲依據（款）</label><select id="rEditClause"></select>
+<label for="rEditItem">獎懲依據（目）</label><select id="rEditItem"></select>
+<label for="rEditAmount">額度（固定，自動帶入）</label><input id="rEditAmount" type="text" readonly placeholder="依各筆獎懲依據自動帶入">
+</div>
+<div class="edit-group">
+<label class="check-label"><input type="checkbox" id="rEditApplyReason">修改獎懲事由</label>
+<label for="rEditReason">獎懲事由（可自行編輯）</label><textarea id="rEditReason"></textarea>
+<p class="note">更換條款目會重新帶入範本事由。只勾選此欄可保留各筆原本的條款目。</p>
+</div>
+<div class="edit-group">
+<label class="check-label"><input type="checkbox" id="rEditApplyAdjust">修改加重減輕事由與額度</label>
+<label for="rEditAdjustReason">加重減輕事由（選填）</label><select id="rEditAdjustReason"></select>
+<label for="rEditAdjustAmount">加重減輕額度（選填）</label><select id="rEditAdjustAmount"></select>
+<p class="note">選「無」可清除加重減輕內容。</p>
+</div>
+<p id="rEditStatus" role="status"></p>
+<div class="actions"><button type="submit">儲存修改</button><button id="rCancelEdit" class="secondary" type="button">取消</button></div>
+</form>
+</dialog>
+
+<script>
+(function () {
+  "use strict";
+  window.reportStartupError = function (message) {
+    var status = document.getElementById("bootStatus");
+    if (status) { status.textContent = "程式錯誤：" + message; status.className = "status error"; }
+  };
+  window.addEventListener("error", function (event) {
+    if (event.target && event.target.tagName === "SCRIPT") window.reportStartupError("元件載入失敗，請重新整理網頁。");
+    else if (event.message && document.documentElement.dataset.appReady !== "true") window.reportStartupError(event.message);
+  }, true);
+})();
+</script>
+<script defer src="./vendor/xlsx.full.min.js?v=0.20.3"></script>
+<script defer src="./js/core.js?v=20261018c"></script>
+<script defer src="./js/store.js?v=20261018c"></script>
+<script defer src="./js/app.js?v=20261018c"></script>
+<script>if ("serviceWorker" in navigator && location.protocol === "https:") window.addEventListener("load", function () { navigator.serviceWorker.register("./sw.js").catch(function () {}); });</script>
+</body>
+</html>
