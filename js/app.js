@@ -208,7 +208,7 @@
 
     renderCohorts();
     renderTemplates();
-    pRenderCategories(); pRenderEditScores();
+    pRenderCategories();
     pRenderRecords();
     rResetRuleControls();
     rRender();
@@ -257,9 +257,30 @@
     const tab = settings.tab, n = tab === "points" ? pSelected.size : tab === "reward" ? rSelectedRows.size : 0;
     $("selBar").hidden = n < 2 || $("app").hidden;
     $("selBarCount").textContent = "已勾選 " + n + " 筆";
+    $("selBarEdit").disabled = tab === "points" ? !pTpl : !rTpl;
   }
+  // 懸浮列上的「編輯」「刪除」：一次處理全部勾選的紀錄（手機上不用再展開卡片找按鈕）
+  $("selBarEdit").addEventListener("click", () => {
+    if (settings.tab === "points") {
+      let first = pRecords.find(r => pSelected.has(r) && matchesFilter("p", r));
+      if (!first) { // 勾選的紀錄都被篩選隱藏時，先清除篩選
+        Object.assign(filters.p, {cohort: "", text: "", group: ""}); $("pFilterCohort").value = ""; $("pFilterText").value = "";
+        applyFilter("p"); first = pRecords.find(r => pSelected.has(r));
+      }
+      if (!first) return;
+      pStartInline(first);
+      const tr = $("pRecords").querySelector('tr[data-index="' + pRecords.indexOf(first) + '"]');
+      if (tr) tr.scrollIntoView({block: "center", behavior: "smooth"});
+    } else if (settings.tab === "reward") {
+      rOpenEditor(Array.from(rSelectedRows).sort((a, b) => a - b));
+    }
+  });
+  $("selBarDelete").addEventListener("click", () => {
+    if (settings.tab === "points") pDeleteSelected();
+    else if (settings.tab === "reward") rDeleteSelected();
+  });
   $("selBarClear").addEventListener("click", () => {
-    if (settings.tab === "points") { if (pBulk) pCancelEditing(); pSelected.clear(); pUpdateSelection(); }
+    if (settings.tab === "points") { if (pInline && pInline.targets.length > 1) pCancelInline(false); pSelected.clear(); pRenderRecords(); }
     else if (settings.tab === "reward") { rSelectedRows.clear(); rRender(); }
   });
 
@@ -559,7 +580,6 @@
   const reasonKey = text => text.normalize("NFKC").replace(/^\s*\d+\s*[.、．:：)）-]?\s*/, "").replace(/[\s\p{P}]/gu, "");
 
   fillOptions($("pScore"), SCORES); $("pScore").value = "0.2";
-  function pRenderEditScores() { fillOptions($("pEditScore"), SCORES); }
 
   function pCheckStudents() { renderCheck($("pCheck"), $("pIds").value, "points"); }
   function pUpdateAddState() { $("pAdd").disabled = false; }
@@ -576,9 +596,7 @@
   $("pKind").addEventListener("change", pRenderCategories);
   $("pCategory").addEventListener("change", pRenderItems);
   $("pItem").addEventListener("change", () => pRenderReasonBrowser(false));
-  $("pEditItem").addEventListener("change", () => pRenderReasonBrowser(true));
   $("pSearch").addEventListener("input", () => pRenderReasonBrowser(false));
-  $("pEditSearch").addEventListener("input", () => pRenderReasonBrowser(true));
   $("pIds").addEventListener("input", pCheckStudents);
 
   function pRenderReasonBrowser(edit) {
@@ -595,8 +613,7 @@
       button.setAttribute("aria-label", cat + "：" + reason);
       button.addEventListener("click", () => {
         category.value = cat;
-        if (edit) pEditItemOptions(reason);
-        else { pRenderItems(); item.value = reason; pRenderReasonBrowser(false); }
+        pRenderItems(); item.value = reason; pRenderReasonBrowser(false);
         const pressed = $(prefix + target).querySelector('[aria-pressed="true"]');
         if (pressed) pressed.focus({preventScroll: true});
       });
@@ -648,22 +665,9 @@
     }
   });
 
-  // ── 預覽、勾選、編輯 ──
-  let pEditingIndex = null, pEditingTargets = [], pBulk = false;
+  // ── 預覽、勾選、在列上直接編輯 ──
   const pSelected = new Set();
-
-  function pSyncEditFields() {
-    $("pEditDetail").disabled = pBulk && !$("pApplyDetail").checked;
-    $("pEditScore").disabled = pBulk && !$("pApplyScore").checked;
-    $("pEditKind").disabled = pBulk && !$("pApplyKind").checked;
-    $("pEditReasonFields").hidden = pBulk && !$("pApplyKind").checked;
-  }
-  function pSetEditMode(bulk) {
-    pBulk = bulk;
-    ["Detail", "Kind", "Score"].forEach(key => { const box = $("pApply" + key); box.checked = !bulk; box.parentElement.hidden = !bulk; });
-    pSyncEditFields();
-  }
-  ["Detail", "Kind", "Score"].forEach(key => $("pApply" + key).addEventListener("change", pSyncEditFields));
+  let pInline = null; // {anchor, targets, original}
 
   function pUpdateSelection() {
     for (const r of Array.from(pSelected)) if (!pRecords.includes(r)) pSelected.delete(r);
@@ -688,108 +692,105 @@
     });
   }
   function pSelectAll(event) {
-    if (pBulk) pCancelEditing();
+    if (pInline && pInline.targets.length > 1) pCancelInline();
     // 有篩選時，全選只作用在目前看得到的紀錄
     pRecords.filter(r => matchesFilter("p", r)).forEach(r => { if (event.target.checked) pSelected.add(r); else pSelected.delete(r); });
     pUpdateSelection();
   }
   $("pSelectAll").addEventListener("change", pSelectAll);
 
-  function pEditCategoryOptions(selectedCategory, selectedItem) {
-    const prefix = core.kindPrefix($("pEditKind").value);
-    const categories = Object.keys(pOptions()).filter(k => k.startsWith(prefix));
-    fillOptions($("pEditCategory"), categories);
-    if (categories.includes(selectedCategory)) $("pEditCategory").value = selectedCategory;
-    pEditItemOptions(selectedItem);
-  }
-  function pEditItemOptions(selectedItem) {
-    const items = pOptions()[$("pEditCategory").value] || [];
-    fillOptions($("pEditItem"), items);
-    if (items.includes(selectedItem)) $("pEditItem").value = selectedItem;
-    pRenderReasonBrowser(true);
-  }
-  $("pEditKind").addEventListener("change", () => pEditCategoryOptions(null, null));
-  $("pEditCategory").addEventListener("change", () => pEditItemOptions(null));
-
-  function pParkEditPanel() {
-    $("pEditPanel").hidden = true;
-    $("pCount").after($("pEditPanel"));
-    const row = $("pInlineEditRow"); if (row) row.remove();
-  }
-  function pCancelEditing() { pBulk = false; pEditingIndex = null; pEditingTargets = []; pParkEditPanel(); $("pEditError").textContent = ""; }
-  $("pCancelEdit").addEventListener("click", pCancelEditing);
-
-  function pStartEditing(i) {
-    const r = pRecords[i]; if (!r) return;
-    if (!pTpl) { alert("請先匯入加扣分範本才能編輯。"); return; }
-    pParkEditPanel(); pSetEditMode(false);
-    pEditingIndex = i; pEditingTargets = [r];
-    $("pEditHint").textContent = "僅修改目前選取的學生，不影響其他紀錄。";
-    $("pSaveEdit").textContent = "儲存修改";
-    $("pEditTitle").textContent = "編輯紀錄：" + (r.female || r.team) + " " + r.name + "（" + r.cohort + "）";
-    $("pEditKind").value = r.kind; $("pEditScore").value = r.score.toFixed(1);
-    pEditCategoryOptions(r.cat, r.reason);
-    $("pEditDetail").value = r.detail || ""; $("pEditError").textContent = "";
-    const row = document.createElement("tr"); row.id = "pInlineEditRow";
-    const cell = document.createElement("td"); cell.colSpan = 12; row.append(cell);
-    const recordRow = $("pRecords").querySelector('tr[data-index="' + i + '"]');
-    expanded.p.add(r); recordRow.classList.add("expanded");
-    recordRow.after(row); cell.append($("pEditPanel"));
-    $("pEditPanel").hidden = false;
-  }
-  function pStartBulkEditing(anchorIndex, position) {
-    const targets = pRecords.filter(r => pSelected.has(r)); if (!targets.length) return;
-    pStartEditing(anchorIndex == null ? pRecords.indexOf(targets[0]) : anchorIndex);
-    if (pEditingIndex === null) return;
-    pEditingTargets = targets;
-    const first = targets[0];
-    $("pEditKind").value = first.kind; $("pEditScore").value = first.score.toFixed(1);
-    pEditCategoryOptions(first.cat, first.reason); $("pEditDetail").value = first.detail || "";
-    pSetEditMode(true);
-    $("pEditTitle").textContent = "批次編輯 " + targets.length + " 筆紀錄";
-    $("pEditHint").textContent = "先帶入第一筆勾選紀錄。只有右側勾選「一起編輯」的欄位會統一套用，未勾選的欄位保留各筆原值。編輯加扣分類型時，歸類與事蹟也會一併套用。";
-    $("pSaveEdit").textContent = "套用至 " + targets.length + " 筆紀錄";
-    if (anchorIndex == null) {
-      $(position === "bottom" ? "pBulkBottom" : "pBulkTop").after($("pEditPanel"));
-      const row = $("pInlineEditRow"); if (row) row.remove();
-      // 從上方按鈕批次編輯時，不要把第一筆展開
-      expanded.p.delete(first);
-      const firstRow = $("pRecords").querySelector('tr[data-index="' + pRecords.indexOf(first) + '"]');
-      if (firstRow) firstRow.classList.remove("expanded");
-    }
-  }
-
-
   function pDeleteSelected() {
     const targets = new Set(pRecords.filter(r => pSelected.has(r)));
     if (!targets.size) return;
     const hidden = Array.from(targets).filter(r => !matchesFilter("p", r)).length;
     if (!confirm("確定刪除勾選的 " + targets.size + " 筆紀錄？" + (hidden ? "\n（其中 " + hidden + " 筆目前被篩選隱藏）" : "") + "\n未勾選的紀錄會保留。")) return;
-    pCancelEditing();
+    pCancelInline(false);
     pRecords = pRecords.filter(r => !targets.has(r)); pSelected.clear();
     pRenderRecords(); saveDrafts();
     $("pCount").textContent += "（已刪除 " + targets.size + " 筆紀錄）";
   }
 
+  /* 在預覽列上直接修改「說明、類型、分數、事由」。
+     勾選多筆時從勾選列開始編輯：只把「有改動的欄位」套用到全部勾選紀錄，沒改的欄位保留各筆原值。 */
+  function pReasonOptions(select, kind, cat, reason) {
+    select.replaceChildren(new Option("請選擇事由", ""));
+    Object.entries(pOptions()).filter(([c]) => c.startsWith(core.kindPrefix(kind))).forEach(([c, items]) => {
+      const group = document.createElement("optgroup"); group.label = c;
+      core.unique(items).forEach(item => { const o = new Option(item, c + "\u0001" + item); o.title = c + "：" + item; group.append(o); });
+      select.append(group);
+    });
+    select.value = cat && reason ? cat + "\u0001" + reason : "";
+  }
+  function pCancelInline(rerender = true) {
+    if (!pInline) return;
+    pInline = null;
+    if (rerender) pRenderRecords();
+  }
+  function pStartInline(r) {
+    if (!pTpl) { alert("請先到「名冊與設定」匯入加扣分範本才能編輯。"); return; }
+    if (pInline) pCancelInline();
+    const targets = pSelected.size > 1 && pSelected.has(r) ? pRecords.filter(x => pSelected.has(x)) : [r];
+    pInline = {anchor: r, targets, original: {detail: r.detail || "", kind: r.kind, score: r.score.toFixed(1), key: r.cat + "\u0001" + r.reason}};
+    const tr = $("pRecords").querySelector('tr[data-index="' + pRecords.indexOf(r) + '"]');
+    if (!tr) return;
+    tr.classList.add("inline-editing", "expanded"); expanded.p.add(r);
+    targets.forEach(t => { const row = $("pRecords").querySelector('tr[data-index="' + pRecords.indexOf(t) + '"]'); if (row) row.classList.add("edit-target"); });
+    const cell = label => tr.querySelector('td[data-label="' + label + '"]');
 
-  $("pSaveEdit").addEventListener("click", () => {
-    if (pEditingIndex === null || !pRecords[pEditingIndex]) return;
-    const applyDetail = !pBulk || $("pApplyDetail").checked, applyKind = !pBulk || $("pApplyKind").checked, applyScore = !pBulk || $("pApplyScore").checked;
-    const patch = {};
-    if (applyDetail) patch.detail = $("pEditDetail").value.trim();
-    if (applyScore) patch.score = Math.round(Number($("pEditScore").value) * 10) / 10;
-    if (applyKind) Object.assign(patch, {kind: $("pEditKind").value, cat: $("pEditCategory").value, reason: $("pEditItem").value});
+    const detail = document.createElement("textarea"); detail.className = "inline-field inline-detail"; detail.value = r.detail || "";
+    detail.setAttribute("aria-label", "說明");
+    cell("說明").replaceChildren(detail);
+    if (targets.length > 1) {
+      const hint = document.createElement("div"); hint.className = "inline-hint";
+      hint.textContent = "改動的欄位會套用到勾選的 " + targets.length + " 筆（虛線框）；沒改的欄位保留各筆原值。";
+      cell("說明").append(hint);
+    }
+    const kind = document.createElement("select"); kind.className = "inline-field inline-kind"; kind.setAttribute("aria-label", "類型");
+    ["加分", "扣分"].forEach(k => kind.add(new Option(k, k))); kind.value = r.kind;
+    cell("類型").replaceChildren(kind);
+    const score = document.createElement("select"); score.className = "inline-field inline-score"; score.setAttribute("aria-label", "分數");
+    SCORES.forEach(v => score.add(new Option(v, v))); score.value = r.score.toFixed(1);
+    cell("分數").replaceChildren(score);
+    const reason = document.createElement("select"); reason.className = "inline-field inline-reason"; reason.setAttribute("aria-label", "事由");
+    pReasonOptions(reason, r.kind, r.cat, r.reason);
+    const error = document.createElement("div"); error.className = "inline-error"; error.setAttribute("role", "alert");
+    cell("事由").replaceChildren(reason, error);
+    kind.addEventListener("change", () => pReasonOptions(reason, kind.value, r.kind === kind.value ? r.cat : "", r.kind === kind.value ? r.reason : ""));
+
+    const actions = tr.querySelector("td.cell-actions");
+    const save = document.createElement("button"), cancel = document.createElement("button");
+    save.type = "button"; save.className = "inline-save"; save.textContent = "儲存";
+    cancel.type = "button"; cancel.className = "secondary inline-cancel"; cancel.textContent = "取消";
+    actions.replaceChildren(save, cancel);
+    save.addEventListener("click", () => pSaveInline(detail, kind, score, reason, error));
+    cancel.addEventListener("click", () => pCancelInline());
+    tr.addEventListener("keydown", event => {
+      if (!pInline) return;
+      if (event.key === "Escape") { event.preventDefault(); pCancelInline(); }
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); save.click(); }
+    });
+    detail.focus();
+  }
+  function pSaveInline(detail, kind, score, reason, error) {
+    if (!pInline) return;
+    const o = pInline.original, patch = {};
+    if (detail.value.trim() !== o.detail.trim()) patch.detail = detail.value.trim();
+    if (score.value !== o.score) patch.score = Math.round(Number(score.value) * 10) / 10;
+    if (kind.value !== o.kind || reason.value !== o.key) {
+      const [cat, item] = reason.value ? reason.value.split("\u0001") : ["", ""];
+      Object.assign(patch, {kind: kind.value, cat, reason: item});
+    }
+    if (!Object.keys(patch).length) { pCancelInline(); return; } // 沒有改動
     const errors = core.validatePointsPatch(pTpl, patch);
-    $("pEditError").textContent = errors.join("\n");
-    if (errors.length) return;
-    const targets = pEditingTargets.filter(r => pRecords.includes(r));
-    if (targets.length !== pEditingTargets.length) return;
-    targets.forEach(r => Object.assign(r, patch));
+    if (errors.length) { error.textContent = errors.join("\n"); return; }
+    const targets = pInline.targets.filter(t => pRecords.includes(t));
+    targets.forEach(t => Object.assign(t, patch));
     pSelected.clear(); // 儲存後取消勾選
     justEdited.p = new Set(targets);
-    pCancelEditing(); pRenderRecords(); saveDrafts();
+    pInline = null;
+    pRenderRecords(); saveDrafts();
     $("pCount").textContent += "（已儲存 " + targets.length + " 筆修改，以淺藍色標示）";
-  });
+  }
 
   /* ───────── 預覽清單：精簡／完整、依事由分組、篩選 ───────── */
   const filters = {p: {cohort: "", text: "", group: ""}, r: {cohort: "", text: "", group: ""}};
@@ -883,7 +884,6 @@
     const records = listRecords(prefix), f = filters[prefix];
     let shown = 0;
     Array.from(listBody(prefix).children).forEach(tr => {
-      if (tr.id === "pInlineEditRow") return;
       const r = records[Number(tr.dataset.index)];
       const ok = !!r && matchesFilter(prefix, r);
       tr.hidden = !ok; if (ok) shown++;
@@ -922,7 +922,7 @@
   }
 
   function pRenderRecords() {
-    if (pEditingIndex !== null) pCancelEditing();
+    pInline = null; // 重新繪製時放棄未儲存的列內編輯
     $("pCount").textContent = pRecords.length ? "本次共 " + pRecords.length + " 筆" + cohortSummary(pRecords) : "尚無紀錄";
     $("pRecords").replaceChildren();
     pRecords.forEach((r, i) => {
@@ -931,7 +931,10 @@
       const selectCell = document.createElement("td"), box = document.createElement("input");
       box.type = "checkbox"; box.dataset.recordIndex = i;
       box.setAttribute("aria-label", "勾選第 " + (i + 1) + " 筆：" + (r.female || "") + " " + r.name);
-      box.addEventListener("change", () => { if (pBulk) pCancelEditing(); if (box.checked) pSelected.add(r); else pSelected.delete(r); pUpdateSelection(); });
+      box.addEventListener("change", () => {
+        if (pInline && pInline.targets.length > 1) pCancelInline();
+        if (box.checked) pSelected.add(r); else pSelected.delete(r); pUpdateSelection();
+      });
       selectCell.className = "cell-select"; selectCell.append(box); tr.append(selectCell);
       tr.append(summaryCell("p", r, tr));
       const cohortCell = document.createElement("td"); cohortCell.className = "cell-cohort"; cohortCell.append(cohortTag(r.cohort)); tr.append(cohortCell);
@@ -941,7 +944,7 @@
       const td = document.createElement("td"); td.className = "nowrap cell-actions";
       const edit = document.createElement("button"), del = document.createElement("button");
       edit.type = "button"; edit.textContent = "編輯"; edit.dataset.editIndex = i;
-      edit.addEventListener("click", () => { if (pSelected.size > 1 && pSelected.has(r)) pStartBulkEditing(i); else pStartEditing(i); });
+      edit.addEventListener("click", () => pStartInline(r));
       del.type = "button"; del.textContent = "刪除"; del.className = "danger"; del.dataset.deleteIndex = i;
       del.addEventListener("click", () => {
         if (pSelected.size > 1 && pSelected.has(r)) { pDeleteSelected(); return; }
@@ -957,7 +960,7 @@
 
   $("pClear").addEventListener("click", () => {
     if (!confirm("確定清空全部 " + pRecords.length + " 筆加扣分紀錄？")) return;
-    pRecords = []; pSelected.clear(); pCancelEditing(); pRenderRecords(); saveDrafts();
+    pRecords = []; pSelected.clear(); pInline = null; pRenderRecords(); saveDrafts();
     $("pError").textContent = "";
   });
   $("pExport").addEventListener("click", () => {

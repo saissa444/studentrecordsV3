@@ -129,13 +129,27 @@ let rDupBefore = 0;
   assert.match(await page.textContent("#tab-points .bulk-hint"), /一次處理這 2 筆/);
   assert.equal(await page.isVisible("#selBar"), true);
   assert.match(await page.textContent("#selBarCount"), /已勾選 2 筆/);
-  await multiEdit.click();
-  assert.match(await page.textContent("#pEditTitle"), /批次編輯 2 筆/);
+  assert.equal(await page.isVisible("#selBarEdit"), true);
+  assert.equal(await page.isVisible("#selBarDelete"), true);
+  if (process.env.MOBILE) {
+    // 手機：懸浮列不超出畫面、不壓到回頂端按鈕，並用懸浮列的「編輯」開始編輯
+    const bar = await page.locator("#selBar").boundingBox();
+    assert.ok(bar.x >= 0 && bar.x + bar.width <= 402 - 50, "懸浮列超出或壓到右側按鈕：" + JSON.stringify(bar));
+    const order = await page.$$eval("#selBar > *", els => els.map(e => e.id || e.className));
+    assert.deepEqual(order, ["selBarEdit", "selBarDelete", "sel-text", "selBarClear"]);
+    await page.click("#selBarEdit");
+  } else await multiEdit.click();
+  // 不再跳出下方的編輯面板，而是在列上直接編輯
+  assert.equal(await page.locator("#pEditPanel").count(), 0);
+  const editing = page.locator("#pRecords > tr.inline-editing");
+  assert.equal(await editing.count(), 1);
+  assert.equal(await page.locator("#pRecords > tr.edit-target").count(), 2);
+  assert.match(await editing.locator(".inline-hint").textContent(), /勾選的 2 筆/);
   // 切到獎懲分頁時，懸浮提示不顯示加扣分的勾選
   await page.click("#tabBtn-reward"); assert.equal(await page.isVisible("#selBar"), false); await page.click("#tabBtn-points");
-  await page.check("#pApplyScore"); await page.uncheck("#pApplyDetail"); await page.uncheck("#pApplyKind");
-  await page.selectOption("#pEditScore", "0.3");
-  await page.click("#pSaveEdit");
+  await editing.locator("select.inline-score").selectOption("0.3");
+  await editing.locator("button.inline-save").click();
+  assert.equal(await page.locator("#pRecords > tr.inline-editing").count(), 0);
   assert.match(await page.textContent("#pSelected"), /已勾選 0 筆/);
   assert.equal(await page.locator("#pRecords input[type=checkbox]:checked").count(), 0);
   // 剛修改的 2 筆維持淺藍底；查看操作不取消，下一個操作才取消
@@ -183,6 +197,39 @@ let rDupBefore = 0;
     assert.equal(await page.locator("#pRecords > tr").nth(1).locator("td[data-label='學籍號碼']").isVisible(), true);
     await page.click("#tab-points .view-seg button[data-view=compact]");
   }
+
+  step("加扣分：在列上直接編輯單筆（說明、類型、事由）與取消");
+  const row3 = "#pRecords > tr:nth-child(3)";
+  const openEdit = async sel => {
+    if (process.env.MOBILE && !/expanded/.test(await page.getAttribute(sel, "class") || "")) await page.click(sel + " .cell-summary");
+    await page.click(sel + " button[data-edit-index]");
+  };
+  await openEdit(row3);
+  await page.fill(row3 + " textarea.inline-detail", "改成新的說明");
+  if (!process.env.MOBILE) {
+    const ov = await page.$eval("#tab-points .tablewrap", el => el.scrollWidth - el.clientWidth);
+    assert.ok(ov <= 0, "編輯中表格需要左右捲動（多 " + ov + "px）");
+  }
+  await page.click(row3 + " button.inline-save");
+  assert.equal(await page.textContent(row3 + " td[data-label='說明']"), "改成新的說明");
+  assert.equal(await page.textContent(row3 + " td[data-label='類型']"), "加分");
+  assert.notEqual(await page.textContent("#pRecords > tr:nth-child(1) td[data-label='說明']"), "改成新的說明");
+  await openEdit(row3);
+  await page.selectOption(row3 + " select.inline-kind", "扣分");
+  assert.equal(await page.inputValue(row3 + " select.inline-reason"), "");
+  await page.click(row3 + " button.inline-save");
+  assert.match(await page.textContent(row3 + " .inline-error"), /請選擇分類及事由/);
+  await page.selectOption(row3 + " select.inline-reason", {label: "63.內務不整者"});
+  await page.click(row3 + " button.inline-save");
+  assert.equal(await page.textContent(row3 + " td[data-label='類型']"), "扣分");
+  assert.equal(await page.textContent(row3 + " td[data-label='事由']"), "63.內務不整者");
+  // Esc 取消，不會改動
+  const row1 = "#pRecords > tr:nth-child(1)";
+  await openEdit(row1);
+  await page.selectOption(row1 + " select.inline-score", "0.8");
+  await page.press(row1 + " select.inline-score", "Escape");
+  assert.equal(await page.locator("#pRecords > tr.inline-editing").count(), 0);
+  assert.equal(await page.textContent(row1 + " td[data-label='分數']"), "0.3");
 
   step("加扣分匯出");
   const [dl1] = await Promise.all([page.waitForEvent("download"), page.click("#pExport")]);
@@ -260,7 +307,8 @@ let rDupBefore = 0;
   }
   // 未勾選的列仍只處理自己
   assert.equal(await page.textContent("#rBody > tr:nth-child(1) button[data-delete-index]"), "刪除");
-  await page.click(lastRow + " button[data-delete-index]");
+  if (process.env.MOBILE) await page.click("#selBarDelete"); // 手機用懸浮列刪除
+  else await page.click(lastRow + " button[data-delete-index]");
   await page.waitForFunction(n => document.querySelectorAll("#rBody > tr").length === n, rDupBefore);
   assert.match(await page.textContent("#rResult"), /已刪除 2 筆/);
   assert.equal(await page.isVisible("#selBar"), false);

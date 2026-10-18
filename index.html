@@ -102,7 +102,7 @@ td button{margin:2px 4px 2px 0;min-height:38px;padding:6px 12px}
 .bulk-hint{font-size:12.5px}
 .bulk-hint.active{color:var(--brand);font-weight:650}
 /* 勾選時的懸浮提示列 */
-#selBar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom));z-index:31;display:flex;align-items:center;gap:12px;flex-wrap:nowrap;white-space:nowrap;max-width:calc(100vw - 80px);background:#1f3b63;color:#fff;border-radius:14px;padding:8px 10px 8px 16px;box-shadow:0 6px 20px rgba(16,33,61,.35);font-size:14px;line-height:1.4}
+#selBar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom));z-index:31;display:flex;align-items:center;gap:12px;flex-wrap:nowrap;white-space:nowrap;max-width:calc(100vw - 80px);background:#1f3b63;color:#fff;border-radius:14px;padding:8px 10px;box-shadow:0 6px 20px rgba(16,33,61,.35);font-size:14px;line-height:1.4}
 #selBar strong{font-size:15px}
 #selBar .sel-text{overflow:hidden;text-overflow:ellipsis;min-width:0}
 #selBar[hidden]{display:none!important}
@@ -112,7 +112,14 @@ td button{margin:2px 4px 2px 0;min-height:38px;padding:6px 12px}
 @media (max-width:520px){
   #selBar .sel-help{display:none}
 }
-#selBar button{margin:0;min-height:34px;padding:4px 12px;background:rgba(255,255,255,.18);font-size:13.5px}
+#selBar button{margin:0;min-height:36px;padding:4px 12px;background:rgba(255,255,255,.18);font-size:13.5px;flex:0 0 auto}
+#selBar #selBarEdit{background:#fff;color:var(--brand)}
+#selBar #selBarDelete{background:#c0392b;color:#fff}
+@media (max-width:520px){
+  #selBar{gap:8px;padding:7px 8px}
+  #selBar button{padding:4px 10px}
+  #selBar strong{font-size:14px}
+}
 .check-label{display:inline-flex;align-items:center;gap:8px;min-height:44px;margin:0;font-weight:500}
 .editbox{background:var(--soft);border:1px solid #c7d9f0;border-radius:12px;padding:16px;margin:12px 0}
 .edit-field-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -195,6 +202,19 @@ td.cell-summary{display:none}
   .tablewrap.records td.cell-actions button{display:inline-block;width:auto;margin:2px 6px 2px 0}
   .tablewrap.records td.cell-actions button:last-child{margin-right:0}
 }
+/* 加扣分：預覽列內直接編輯 */
+tr.inline-editing{background:#fffbea!important;outline:2px solid #d9a400;outline-offset:-2px}
+tr.inline-editing td.cell-actions,tr.inline-editing td.cell-select{background:#fffbea!important}
+tr.edit-target:not(.inline-editing){outline:2px dashed #d9a400;outline-offset:-2px}
+.inline-field{width:100%;min-width:0;max-width:100%;font-size:13.5px;padding:5px 6px;border-radius:7px}
+textarea.inline-field{min-height:58px;resize:vertical}
+td .inline-field + .inline-hint{margin-top:4px}
+.inline-hint{font-size:12px;color:#8a5a00;line-height:1.5}
+.inline-error{font-size:12.5px;color:var(--err);white-space:pre-wrap;margin-top:4px}
+select.inline-kind{min-width:66px}
+select.inline-score{min-width:60px}
+td[data-label] > .inline-hint,td[data-label] > .inline-error{grid-column:2}
+td.cell-actions button.inline-save{background:#127348}
 dialog{width:min(620px,calc(100% - 24px));max-height:85vh;max-height:85dvh;border:1px solid #b8c7d9;border-radius:14px;padding:20px;overflow:auto;color:var(--ink)}
 dialog::backdrop{background:#10213d80}
 .edit-group{margin:14px 0;padding:12px;border:1px solid var(--line);border-radius:10px}
@@ -300,30 +320,6 @@ dialog .actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0;marg
     <section>
       <h2>② 預覽及匯出</h2>
       <p id="pCount" class="summary-line">尚無紀錄</p>
-      <div id="pEditPanel" class="editbox" hidden>
-        <h3 id="pEditTitle">編輯單筆紀錄</h3>
-        <p id="pEditHint" class="note">僅修改目前選取的學生，不影響其他紀錄。</p>
-        <div class="edit-field-heading"><label for="pEditDetail">說明（可自行編輯）</label><label class="bulk-toggle" hidden><input type="checkbox" id="pApplyDetail"> 一起編輯</label></div>
-        <textarea id="pEditDetail"></textarea>
-        <div class="grid">
-          <div><div class="edit-field-heading"><label for="pEditKind">加扣分類型</label><label class="bulk-toggle" hidden><input type="checkbox" id="pApplyKind"> 一起編輯</label></div><select id="pEditKind"><option>加分</option><option>扣分</option></select></div>
-          <div><div class="edit-field-heading"><label for="pEditScore">分數</label><label class="bulk-toggle" hidden><input type="checkbox" id="pApplyScore"> 一起編輯</label></div><select id="pEditScore"></select></div>
-        </div>
-        <div id="pEditReasonFields">
-          <div class="reason-favorites"><h3>常用分類</h3><p id="pEditFavoriteHint" class="note"></p><div id="pEditFavorites" role="group" aria-label="常用分類"></div></div>
-          <label for="pEditCategory">加減分依據（歸類）</label><select id="pEditCategory"></select>
-          <label for="pEditItem">事蹟說明（事由）</label><select id="pEditItem"></select>
-          <details class="reason-browser" id="pEditBrowser">
-            <summary>瀏覽／搜尋全部分類的事蹟說明</summary>
-            <label for="pEditSearch">搜尋事蹟或分類名稱</label>
-            <input id="pEditSearch" type="search" placeholder="輸入關鍵字，例如：內務、公差" autocomplete="off">
-            <p id="pEditResultCount" class="note" role="status" aria-live="polite"></p>
-            <div id="pEditResults" class="reason-results" role="group" aria-label="全分類事蹟說明"></div>
-          </details>
-        </div>
-        <p id="pEditError" class="err" role="alert"></p>
-        <div class="actions"><button id="pSaveEdit" type="button">儲存修改</button><button id="pCancelEdit" type="button" class="secondary">取消</button></div>
-      </div>
 <div class="list-tools">
         <div class="view-seg" role="group" aria-label="手機預覽方式"><button type="button" data-view="compact">精簡</button><button type="button" data-view="full">完整</button></div>
         <details class="groups-box" id="pGroupsBox" open hidden><summary id="pGroupsTitle">依事由分組</summary><div id="pGroups" class="groups"></div></details>
@@ -472,12 +468,12 @@ dialog .actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0;marg
       <p class="note">資料只存在「這台裝置的這個瀏覽器」。換電腦、換瀏覽器或清除瀏覽器網站資料後，需要重新匯入。iPhone 建議用 Safari「加入主畫面」後從主畫面開啟，資料比較不會被系統清掉。</p>
       <button id="wipeAll" type="button" class="solid-danger">清除本機全部資料</button>
     </section>
-    <p class="note" style="text-align:center">版本 2026.10.18n</p>
+    <p class="note" style="text-align:center">版本 2026.10.18p</p>
   </div>
   </main>
 </div>
 
-<div id="selBar" role="status" aria-live="polite" hidden><span class="sel-text"><strong id="selBarCount"></strong><span class="sel-help">　按勾選列的編輯／刪除可一次處理</span></span><button id="selBarClear" type="button">取消勾選</button></div>
+<div id="selBar" role="region" aria-label="勾選紀錄操作" hidden><button id="selBarEdit" type="button">編輯</button><button id="selBarDelete" type="button">刪除</button><span class="sel-text" role="status" aria-live="polite"><strong id="selBarCount"></strong></span><button id="selBarClear" type="button">取消勾選</button></div>
 <button id="toTop" type="button" hidden aria-label="回到頂端" title="回到頂端">↑</button>
 
 <!-- 獎懲編輯視窗 -->
@@ -523,9 +519,9 @@ dialog .actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0;marg
 })();
 </script>
 <script defer src="./vendor/xlsx.full.min.js?v=0.20.3"></script>
-<script defer src="./js/core.js?v=20261018n"></script>
-<script defer src="./js/store.js?v=20261018n"></script>
-<script defer src="./js/app.js?v=20261018n"></script>
+<script defer src="./js/core.js?v=20261018p"></script>
+<script defer src="./js/store.js?v=20261018p"></script>
+<script defer src="./js/app.js?v=20261018p"></script>
 <script>if ("serviceWorker" in navigator && location.protocol === "https:") window.addEventListener("load", function () { navigator.serviceWorker.register("./sw.js").catch(function () {}); });</script>
 </body>
 </html>
