@@ -7,6 +7,7 @@ const FX = path.join(__dirname, "fixtures");
 const OUT = path.join(__dirname, "output"); fs.mkdirSync(OUT, {recursive: true});
 const URL = process.env.APP_URL || "http://localhost:8765/index.html";
 
+let rDupBefore = 0;
 (async () => {
   const browser = await chromium.launch();
   const context = await browser.newContext(process.env.MOBILE ? devices["iPhone 13"] : {viewport: {width: 1200, height: 900}, acceptDownloads: true});
@@ -192,6 +193,22 @@ const URL = process.env.APP_URL || "http://localhost:8765/index.html";
   await page.waitForFunction(() => !document.getElementById("rEditor").open);
   assert.match(await page.$eval("#rBody tr:nth-child(2)", tr => tr.innerText), /改過的事由/);
   const [dl2] = await Promise.all([page.waitForEvent("download"), page.click("#rExport")]);
+  step("獎懲：勾選多筆一次刪除");
+  rDupBefore = await page.locator("#rBody > tr").count();
+  // 新增兩筆暫時紀錄再一次刪除，確認其餘紀錄不受影響
+  await page.fill("#rIds", "001 003");
+  await page.selectOption("#rArticle", "第19條"); await page.selectOption("#rClause", "第1款");
+  await page.click("#rAdd");
+  await page.waitForFunction(n => document.querySelectorAll("#rBody > tr").length === n + 2, rDupBefore);
+  assert.equal(await page.isDisabled("#rDeleteSelected"), true);
+  await page.check("#rBody > tr:nth-child(" + (rDupBefore + 1) + ") input[type=checkbox]");
+  await page.check("#rBody > tr:nth-child(" + (rDupBefore + 2) + ") input[type=checkbox]");
+  assert.match(await page.textContent("#rSelectedBottom"), /已勾選 2 \//);
+  await page.click("#rDeleteSelectedBottom");
+  await page.waitForFunction(n => document.querySelectorAll("#rBody > tr").length === n, rDupBefore);
+  assert.match(await page.textContent("#rResult"), /已刪除 2 筆/);
+  assert.match(await page.$eval("#rBody > tr:nth-child(2)", tr => tr.textContent), /改過的事由/);
+  assert.equal(await page.isDisabled("#rDeleteSelected"), true);
   const rFile = path.join(OUT, "reward.xlsx"); await dl2.saveAs(rFile);
 
   step("設定開啟密碼");

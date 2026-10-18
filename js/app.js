@@ -729,7 +729,8 @@
   function pDeleteSelected() {
     const targets = new Set(pRecords.filter(r => pSelected.has(r)));
     if (!targets.size) return;
-    if (!confirm("確定刪除勾選的 " + targets.size + " 筆紀錄？未勾選的紀錄會保留。")) return;
+    const hidden = Array.from(targets).filter(r => !matchesFilter("p", r)).length;
+    if (!confirm("確定刪除勾選的 " + targets.size + " 筆紀錄？" + (hidden ? "\n（其中 " + hidden + " 筆目前被篩選隱藏）" : "") + "\n未勾選的紀錄會保留。")) return;
     pCancelEditing();
     pRecords = pRecords.filter(r => !targets.has(r)); pSelected.clear();
     pRenderRecords(); saveDrafts();
@@ -1006,13 +1007,16 @@
     const n = rSelectedRows.size, total = rRecords.length;
     const visible = rRecords.map((r, i) => i).filter(i => matchesFilter("r", rRecords[i]));
     const allVisible = visible.length > 0 && visible.every(i => rSelectedRows.has(i)), someVisible = !allVisible && visible.some(i => rSelectedRows.has(i));
-    $("rSelected").textContent = "已選取 " + n + " / " + total + " 筆";
-    $("rEditSelected").disabled = !n || !rTpl;
+    ["", "Bottom"].forEach(suffix => {
+      $("rSelected" + suffix).textContent = "已勾選 " + n + " / " + total + " 筆";
+      $("rEditSelected" + suffix).disabled = !n || !rTpl;
+      $("rDeleteSelected" + suffix).disabled = !n;
+      $("rSelectAll" + suffix).disabled = !total;
+      $("rSelectAll" + suffix).checked = allVisible;
+      $("rSelectAll" + suffix).indeterminate = someVisible;
+    });
     $("rClearRecords").disabled = !total;
     $("rExport").disabled = !total;
-    $("rSelectAll").disabled = !total;
-    $("rSelectAll").checked = allVisible;
-    $("rSelectAll").indeterminate = someVisible;
   }
   function rUpdateDuplicates() {
     const duplicates = core.duplicateStudents(rRecords);
@@ -1060,11 +1064,24 @@
     rRender(); saveDrafts();
     rReport(rRecords.length ? "已刪除 1 筆紀錄；目前共 " + rRecords.length + " 筆。" : "已刪除最後一筆紀錄；可再次批次新增。", "ok");
   }
-  $("rSelectAll").addEventListener("change", () => {
-    const checked = $("rSelectAll").checked;
+  ["rSelectAll", "rSelectAllBottom"].forEach(id => $(id).addEventListener("change", () => {
+    const checked = $(id).checked;
     rRecords.forEach((r, i) => { if (!matchesFilter("r", r)) return; if (checked) rSelectedRows.add(i); else rSelectedRows.delete(i); });
     rRender();
-  });
+  }));
+  function rDeleteSelected() {
+    const targets = new Set(rSelectedRows);
+    if (!targets.size) return;
+    const hidden = Array.from(targets).filter(i => rRecords[i] && !matchesFilter("r", rRecords[i])).length;
+    if (!confirm("確定刪除勾選的 " + targets.size + " 筆獎懲紀錄？" + (hidden ? "\n（其中 " + hidden + " 筆目前被篩選隱藏）" : "") + "\n未勾選的紀錄會保留。")) return;
+    if ($("rEditor").open) $("rEditor").close();
+    rRecords = rRecords.filter((r, i) => !targets.has(i));
+    rSelectedRows.clear();
+    rRender(); saveDrafts();
+    rReport("已刪除 " + targets.size + " 筆紀錄；" + (rRecords.length ? "目前共 " + rRecords.length + " 筆。" : "已無紀錄，可再次批次新增。"), "ok");
+  }
+  $("rDeleteSelected").addEventListener("click", rDeleteSelected);
+  $("rDeleteSelectedBottom").addEventListener("click", rDeleteSelected);
   $("rClearRecords").addEventListener("click", () => {
     if (!confirm("確定清空全部 " + rRecords.length + " 筆獎懲紀錄？")) return;
     rRecords = []; rSelectedRows.clear(); rRender(); saveDrafts();
@@ -1132,7 +1149,7 @@
     $("rEditStatus").textContent = ""; $("rEditStatus").className = "";
     $("rEditor").showModal();
   }
-  $("rEditSelected").addEventListener("click", () => rOpenEditor(Array.from(rSelectedRows).sort((a, b) => a - b)));
+  ["rEditSelected", "rEditSelectedBottom"].forEach(id => $(id).addEventListener("click", () => rOpenEditor(Array.from(rSelectedRows).sort((a, b) => a - b))));
   $("rEditArticle").addEventListener("change", () => rFillEditClauses());
   $("rEditClause").addEventListener("change", () => rFillEditItems());
   $("rEditItem").addEventListener("change", () => { rFillEditorReason(); rSyncEditor(); });
