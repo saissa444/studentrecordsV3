@@ -163,12 +163,13 @@ td.cell-summary{display:none}
   tr.expanded .sum-chev{transform:rotate(90deg)}
   .sum-line2{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
 }
-/* 電腦／平板：加扣分表格的「操作」欄固定在右側，不必左右捲動 */
+/* 電腦／平板：兩個分頁的「操作」欄都在最左側並固定，編輯與刪除左右並排 */
 @media (min-width:701px){
-  #pRecords td.cell-actions,.tablewrap th.col-actions{position:sticky;right:0;z-index:1;background:#fff;box-shadow:-8px 0 10px -8px rgba(16,33,61,.25)}
-  .tablewrap th.col-actions{background:#eef3f9;z-index:2}
-  #pRecords tr.selected-record td.cell-actions{background:var(--soft)}
-  #pRecords td.cell-actions button{display:block;width:100%;margin:2px 0}
+  .tablewrap.records td.cell-actions,.tablewrap.records th.col-actions{position:sticky;left:0;z-index:1;background:#fff;white-space:nowrap;box-shadow:8px 0 10px -8px rgba(16,33,61,.22)}
+  .tablewrap.records th.col-actions{background:#eef3f9;z-index:2}
+  .tablewrap.records tr.selected-record td.cell-actions{background:var(--soft)}
+  .tablewrap.records td.cell-actions button{display:inline-block;width:auto;margin:2px 6px 2px 0}
+  .tablewrap.records td.cell-actions button:last-child{margin-right:0}
 }
 dialog{width:min(620px,calc(100% - 24px));max-height:85vh;max-height:85dvh;border:1px solid #b8c7d9;border-radius:14px;padding:20px;overflow:auto;color:var(--ink)}
 dialog::backdrop{background:#10213d80}
@@ -307,7 +308,7 @@ dialog .actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0;marg
       </div>
       <div id="pBulkTop" class="bulk-tools"><label class="check-label"><input id="pSelectAll" type="checkbox"> 全選</label><span id="pSelected" role="status">已勾選 0 筆</span><button id="pBulkEdit" type="button" disabled>編輯勾選紀錄</button><button id="pBulkDelete" type="button" class="danger" disabled>刪除勾選紀錄</button></div>
       <div class="tablewrap records"><table>
-        <thead><tr><th>勾選</th><th>期別</th><th>女生隊號</th><th>建制隊號</th><th>姓名</th><th>說明</th><th>學籍號碼</th><th>類型</th><th>分數</th><th>事由</th><th class="col-actions">操作</th></tr></thead>
+        <thead><tr><th class="col-actions">操作</th><th>勾選</th><th>期別</th><th>女生隊號</th><th>建制隊號</th><th>姓名</th><th>說明</th><th>學籍號碼</th><th>類型</th><th>分數</th><th>事由</th></tr></thead>
         <tbody id="pRecords"></tbody>
       </table></div>
       <div id="pBulkBottom" class="bulk-tools"><label class="check-label"><input id="pSelectAllBottom" type="checkbox"> 全選</label><span id="pSelectedBottom" role="status">已勾選 0 筆</span><button id="pBulkEditBottom" type="button" disabled>編輯勾選紀錄</button><button id="pBulkDeleteBottom" type="button" class="danger" disabled>刪除勾選紀錄</button></div>
@@ -355,7 +356,7 @@ dialog .actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0;marg
       </div>
       <div class="bulk-tools"><label class="check-label"><input type="checkbox" id="rSelectAll" disabled> 全選</label><span id="rSelected" role="status">已勾選 0 筆</span><button id="rEditSelected" type="button" disabled>編輯勾選紀錄</button><button id="rDeleteSelected" type="button" class="danger" disabled>刪除勾選紀錄</button></div>
       <div class="tablewrap records"><table>
-        <thead><tr><th>勾選</th><th>操作</th><th>期別</th><th>學號</th><th>姓名</th><th>條</th><th>款</th><th>目</th><th>獎懲事由</th><th>額度</th><th>加重減輕事由</th><th>加重減輕額度</th></tr></thead>
+        <thead><tr><th class="col-actions">操作</th><th>勾選</th><th>期別</th><th>學號</th><th>姓名</th><th>條</th><th>款</th><th>目</th><th>獎懲事由</th><th>額度</th><th>加重減輕事由</th><th>加重減輕額度</th></tr></thead>
         <tbody id="rBody"></tbody>
       </table></div>
       <div class="bulk-tools"><label class="check-label"><input type="checkbox" id="rSelectAllBottom" disabled> 全選</label><span id="rSelectedBottom" role="status">已勾選 0 筆</span><button id="rEditSelectedBottom" type="button" disabled>編輯勾選紀錄</button><button id="rDeleteSelectedBottom" type="button" class="danger" disabled>刪除勾選紀錄</button></div>
@@ -449,7 +450,7 @@ dialog .actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0;marg
       <p class="note">資料只存在「這台裝置的這個瀏覽器」。換電腦、換瀏覽器或清除瀏覽器網站資料後，需要重新匯入。iPhone 建議用 Safari「加入主畫面」後從主畫面開啟，資料比較不會被系統清掉。</p>
       <button id="wipeAll" type="button" class="solid-danger">清除本機全部資料</button>
     </section>
-    <p class="note" style="text-align:center">版本 2026.10.18i</p>
+    <p class="note" style="text-align:center">版本 2026.10.18j</p>
   </div>
   </main>
 </div>
@@ -499,9 +500,9 @@ dialog .actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0;marg
 })();
 </script>
 <script defer src="./vendor/xlsx.full.min.js?v=0.20.3"></script>
-<script defer src="./js/core.js?v=20261018i"></script>
-<script defer src="./js/store.js?v=20261018i"></script>
-<script defer src="./js/app.js?v=20261018i"></script>
+<script defer src="./js/core.js?v=20261018j"></script>
+<script defer src="./js/store.js?v=20261018j"></script>
+<script defer src="./js/app.js?v=20261018j"></script>
 <script>if ("serviceWorker" in navigator && location.protocol === "https:") window.addEventListener("load", function () { navigator.serviceWorker.register("./sw.js").catch(function () {}); });</script>
 </body>
 </html>

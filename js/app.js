@@ -696,7 +696,7 @@
     pEditCategoryOptions(r.cat, r.reason);
     $("pEditDetail").value = r.detail || ""; $("pEditError").textContent = "";
     const row = document.createElement("tr"); row.id = "pInlineEditRow";
-    const cell = document.createElement("td"); cell.colSpan = 11; row.append(cell);
+    const cell = document.createElement("td"); cell.colSpan = 12; row.append(cell);
     const recordRow = $("pRecords").querySelector('tr[data-index="' + i + '"]');
     expanded.p.add(r); recordRow.classList.add("expanded");
     recordRow.after(row); cell.append($("pEditPanel"));
@@ -908,7 +908,7 @@
       edit.addEventListener("click", () => { if (pSelected.size > 1 && pSelected.has(r)) pStartBulkEditing(i); else pStartEditing(i); });
       del.type = "button"; del.textContent = "刪除"; del.className = "danger";
       del.addEventListener("click", () => { pRecords.splice(pRecords.indexOf(r), 1); pSelected.delete(r); pRenderRecords(); saveDrafts(); });
-      td.append(edit, del); tr.appendChild(td);
+      td.append(edit, del); tr.prepend(td); // 操作欄放最左邊（手機卡片仍以 CSS 排在底部）
       $("pRecords").appendChild(tr);
     });
     $("pExport").disabled = !pRecords.length;
@@ -1039,11 +1039,11 @@
       row.classList.toggle("selected-record", checkbox.checked);
       const actionCell = document.createElement("td"); actionCell.className = "nowrap cell-actions";
       const edit = document.createElement("button"), remove = document.createElement("button");
-      edit.type = "button"; edit.className = "secondary"; edit.textContent = "編輯"; edit.disabled = !rTpl;
+      edit.type = "button"; edit.textContent = "編輯"; edit.disabled = !rTpl;
       edit.addEventListener("click", () => rOpenEditor([index]));
       remove.type = "button"; remove.className = "danger"; remove.textContent = "刪除";
       remove.addEventListener("click", () => rDelete(index));
-      actionCell.append(edit, remove); row.append(actionCell);
+      actionCell.append(edit, remove); row.prepend(actionCell);
       const cohortCell = document.createElement("td"); cohortCell.className = "cell-cohort"; cohortCell.append(cohortTag(record.cohort)); row.append(cohortCell);
       core.rewardFields.forEach(field => {
         const cell = document.createElement("td");

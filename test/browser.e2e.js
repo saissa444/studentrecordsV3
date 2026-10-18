@@ -95,14 +95,16 @@ let rDupBefore = 0;
   assert.match(await page.textContent("#pCount"), /第44期 2 筆、第45期 1 筆/);
 
   if (!process.env.MOBILE) {
-    step("電腦：操作欄不需左右捲動即可看到");
+    step("電腦：操作欄在最左邊，編輯在刪除左側並排");
     for (const width of [1200, 820]) {
       await page.setViewportSize({width, height: 900});
       const wrap = await page.locator("#tab-points .tablewrap").boundingBox();
-      for (const name of ["編輯", "刪除"]) {
-        const box = await page.locator("#pRecords > tr").first().locator("button:has-text('" + name + "')").boundingBox();
-        assert.ok(box.x >= wrap.x && box.x + box.width <= wrap.x + wrap.width + 1, width + "px：" + name + " 按鈕超出可視範圍");
-      }
+      const row = page.locator("#pRecords > tr").first();
+      const edit = await row.locator("button:has-text('編輯')").boundingBox(), del = await row.locator("button:has-text('刪除')").boundingBox();
+      assert.ok(edit.x - wrap.x < 30, width + "px：編輯不在最左邊");
+      assert.ok(edit.x + edit.width <= del.x && Math.abs(edit.y - del.y) < 4, width + "px：編輯與刪除未左右並排");
+      assert.ok(del.x + del.width <= wrap.x + wrap.width, width + "px：刪除超出可視範圍");
+      assert.equal(await page.textContent("#tab-points thead th:first-child"), "操作");
     }
     await page.setViewportSize({width: 1200, height: 900});
   }
@@ -184,6 +186,13 @@ let rDupBefore = 0;
   assert.match(rRows[2], /第44期[\s\S]*林小華[\s\S]*申誡一次/);
   assert.match(await page.textContent("#rDup"), /李小婷（第45期/);
   step("獎懲：編輯視窗");
+  if (!process.env.MOBILE) {
+    const wrapR = await page.locator("#tab-reward .tablewrap").boundingBox();
+    const rowR = page.locator("#rBody > tr").first();
+    const e = await rowR.locator("button:has-text('編輯')").boundingBox(), d = await rowR.locator("button:has-text('刪除')").boundingBox();
+    assert.ok(e.x - wrapR.x < 30 && e.x + e.width <= d.x && Math.abs(e.y - d.y) < 4, "獎懲：操作欄位置或排列不正確");
+    assert.equal(await page.textContent("#tab-reward thead th:first-child"), "操作");
+  }
   if (process.env.MOBILE) await page.click("#rBody tr:nth-child(2) .cell-summary");
   await page.click("#rBody tr:nth-child(2) button:has-text('編輯')");
   assert.match(await page.textContent("#rEditClause"), /第17款｜（分 2 目/);
