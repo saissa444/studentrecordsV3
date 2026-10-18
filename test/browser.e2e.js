@@ -337,6 +337,10 @@ let rDupBefore = 0;
   assert.equal(await page.locator("dialog#rEditor").count(), 0);
   const rRow2 = "#rBody > tr:nth-child(2)";
   assert.equal(await page.locator(rRow2 + ".inline-editing").count(), 1);
+  // 手機進入編輯時不自動選中「條」（避免跳出下拉選單）；電腦則自動選中方便鍵盤操作
+  const focused = await page.evaluate(() => document.activeElement && document.activeElement.className);
+  if (process.env.MOBILE) assert.ok(!/inline-article/.test(focused || ""), "手機不應自動選中條：" + focused);
+  else assert.match(focused || "", /inline-article/);
   assert.match(await page.textContent(rRow2 + " select.inline-clause"), /第17款｜（分 2 目/);
   assert.match(await page.textContent(rRow2 + " select.inline-item"), /第2目｜測試事由丙。/);
   if (!process.env.MOBILE) {

@@ -797,6 +797,9 @@
     }
   });
 
+  // 只有電腦（滑鼠操作、寬螢幕）才在進入編輯時自動選中第一個欄位
+  const autoFocusOK = () => window.matchMedia("(pointer: fine) and (min-width: 1024px)").matches;
+
   // ── 預覽、勾選、在列上直接編輯 ──
   const pSelected = new Set();
   let pInline = null; // {anchor, targets, original}
@@ -904,7 +907,7 @@
       if (event.key === "Escape") { event.preventDefault(); pCancelInline(); }
       if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); save.click(); }
     });
-    detail.focus();
+    if (autoFocusOK()) detail.focus(); // 手機不自動選中，避免一進編輯就跳出鍵盤
   }
   function pSaveInline(detail, kind, score, reason, error) {
     if (!pInline) return;
@@ -1402,7 +1405,7 @@
       if (event.key === "Escape") { event.preventDefault(); rCancelInline(); }
       if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); save.click(); }
     });
-    article.focus();
+    if (autoFocusOK()) article.focus(); // 手機不自動選中，避免一進編輯就跳出下拉選單
   }
 
   window.addEventListener("pagehide", () => { if (!$("app").hidden) flushDrafts(); });
