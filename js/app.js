@@ -109,8 +109,11 @@
     try {
       const state = await Store.status();
       $("bootStatus").hidden = true;
-      if (state === "new") { $("setupForm").hidden = false; $("setupPw").focus(); }
-      else { $("unlockForm").hidden = false; $("unlockPw").focus(); }
+      if (state === "new") { await Store.create("", true); await enterApp(true); }
+      else if (state === "nopass") {
+        if (!(await Store.unlock(""))) throw new Error("本機資料無法開啟，請到設定清除本機資料後重新匯入。");
+        await enterApp(false);
+      } else { $("unlockForm").hidden = false; $("unlockPw").focus(); }
     } catch (error) {
       status("bootStatus", error.message, "error");
     }
@@ -146,7 +149,16 @@
   $("forgotWipe").addEventListener("click", wipeEverything);
   $("wipeAll").addEventListener("click", wipeEverything);
 
+  let noPassword = false;
+  function applySecurityUI() {
+    $("lockBtn").hidden = noPassword;
+    $("pwNoneBox").hidden = !noPassword;
+    $("pwSetBox").hidden = noPassword;
+    $("topSubtitle").textContent = noPassword ? "名冊與範本保存在這台裝置" : "名冊與範本已用密碼加密保存在這台裝置";
+  }
+
   async function lockNow() {
+    if (noPassword) return;
     await flushDrafts();
     Store.lock();
     location.reload(); // 重新載入頁面，清掉記憶體中的學生資料
@@ -159,16 +171,18 @@
     document.addEventListener(type, () => { lastActive = Date.now(); }, {passive: true, capture: true}));
   setInterval(() => {
     const minutes = Number(settings.autoLockMinutes);
-    if ($("app").hidden || !minutes) return;
+    if ($("app").hidden || !minutes || noPassword) return;
     if (Date.now() - lastActive > minutes * 60000) lockNow();
   }, 15000);
   document.addEventListener("visibilitychange", () => {
     const minutes = Number(settings.autoLockMinutes);
-    if (document.visibilityState === "visible" && !$("app").hidden && minutes && Date.now() - lastActive > minutes * 60000) lockNow();
+    if (document.visibilityState === "visible" && !$("app").hidden && !noPassword && minutes && Date.now() - lastActive > minutes * 60000) lockNow();
     if (document.visibilityState === "hidden" && !$("app").hidden) flushDrafts();
   });
 
   async function enterApp(firstTime) {
+    noPassword = await Store.isNoPassword();
+    applySecurityUI();
     cohorts = await Store.getJSON("cohorts", []);
     settings = Object.assign(settings, await Store.getJSON("settings", {}));
     const drafts = await Store.getJSON("drafts", {points: [], reward: []});
@@ -199,7 +213,7 @@
     rRender();
     const ready = cohorts.length && pTpl && rTpl;
     showTab(firstTime || !cohorts.length ? "settings" : settings.tab || (ready ? "points" : "settings"));
-    if (firstTime) status("rosterStatus", "密碼已設定。請先匯入名冊（每期一份），再匯入兩份學校範本；之後打開 App 輸入密碼就能直接使用。", "ok");
+    if (firstTime) status("rosterStatus", "歡迎使用！請先匯入名冊（每期一份），再匯入兩份學校範本；之後打開 App 就能直接使用，不用再匯入。", "ok");
     if (pRecords.length || rRecords.length) {
       const parts = [];
       if (pRecords.length) parts.push("加扣分 " + pRecords.length + " 筆");
@@ -409,6 +423,34 @@
   /* ═══════════ 設定 ═══════════ */
 
   $("autoLock").addEventListener("change", () => { settings.autoLockMinutes = Number($("autoLock").value); saveSettings(); });
+  $("pwSetForm").addEventListener("submit", async event => {
+    event.preventDefault();
+    const out = $("pwSetStatus");
+    out.className = "err";
+    if ($("pwSet1").value.length < 6) { out.textContent = "密碼至少 6 個字元。"; return; }
+    if ($("pwSet1").value !== $("pwSet2").value) { out.textContent = "兩次輸入的密碼不一致。"; return; }
+    out.className = ""; out.textContent = "設定中…";
+    try {
+      await flushDrafts();
+      await Store.changePassword("", $("pwSet1").value);
+      $("pwSetForm").reset(); out.textContent = "";
+      noPassword = false; applySecurityUI();
+      $("pwStatus").className = "ok"; $("pwStatus").textContent = "";
+      alert("已設定開啟密碼。之後打開 App 或按「鎖定」後，都需要輸入密碼。");
+    } catch (error) { out.className = "err"; out.textContent = error.message; }
+  });
+  $("pwRemoveForm").addEventListener("submit", async event => {
+    event.preventDefault();
+    const out = $("pwRemoveStatus");
+    if (!confirm("確定取消開啟密碼？之後任何人打開這個 App 都能看到學生資料。")) return;
+    out.className = ""; out.textContent = "處理中…";
+    try {
+      await flushDrafts();
+      await Store.changePassword($("pwRemoveOld").value, "");
+      $("pwRemoveForm").reset(); out.textContent = "";
+      noPassword = true; applySecurityUI();
+    } catch (error) { out.className = "err"; out.textContent = error.message; }
+  });
   $("pwForm").addEventListener("submit", async event => {
     event.preventDefault();
     const out = $("pwStatus");

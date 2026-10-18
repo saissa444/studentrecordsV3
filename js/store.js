@@ -66,15 +66,18 @@
     async status() {
       if (key) return "open";
       const meta = await rawGet("meta");
-      return meta ? "locked" : "new";
+      return !meta ? "new" : meta.noPassword ? "nopass" : "locked";
     },
 
-    async create(password) {
+    /** noPassword：不設開啟密碼，資料仍加密存放，但開啟時自動解鎖 */
+    async isNoPassword() { const meta = await rawGet("meta"); return !!(meta && meta.noPassword); },
+
+    async create(password, noPassword) {
       if ((await rawGet("meta"))) throw new Error("已設定過密碼。");
       const salt = root.crypto.getRandomValues(new Uint8Array(16));
       const newKey = await deriveKey(password, salt, ITERATIONS);
       const check = await encryptBytes(enc.encode(CHECK), newKey);
-      await rawPut("meta", {v: 1, salt, iterations: ITERATIONS, check, createdAt: Date.now()});
+      await rawPut("meta", {v: 1, salt, iterations: ITERATIONS, check, createdAt: Date.now(), noPassword: !!noPassword});
       key = newKey;
     },
 
@@ -131,7 +134,7 @@
       const check = await encryptBytes(enc.encode(CHECK), newKey);
       await tx("readwrite", store => {
         next.forEach(([name, box]) => store.put(box, name));
-        store.put({v: 1, salt, iterations: ITERATIONS, check, createdAt: meta.createdAt}, "meta");
+        store.put({v: 1, salt, iterations: ITERATIONS, check, createdAt: meta.createdAt, noPassword: newPassword === ""}, "meta");
       });
       key = newKey;
     },

@@ -19,13 +19,10 @@ const URL = process.env.APP_URL || "http://localhost:8765/index.html";
   const step = s => console.log("•", s);
 
   await page.goto(URL);
-  step("首次設定密碼");
-  await page.waitForSelector("#setupForm:not([hidden])");
-  await page.fill("#setupPw", "abc123"); await page.fill("#setupPw2", "abc124");
-  await page.click("#setupBtn");
-  assert.match(await page.textContent("#setupStatus"), /不一致/);
-  await page.fill("#setupPw2", "abc123"); await page.click("#setupBtn");
+  step("首次開啟：不需密碼直接進入");
   await page.waitForSelector("#app:not([hidden])");
+  assert.equal(await page.isHidden("#lockBtn"), true);
+  assert.equal(await page.isVisible("#pwNoneBox"), true); // 第一次開啟停在設定分頁，顯示「未設定密碼」
   assert.equal(await page.getAttribute("#tabBtn-settings", "aria-selected"), "true");
 
   step("匯入兩期名冊");
@@ -57,13 +54,8 @@ const URL = process.env.APP_URL || "http://localhost:8765/index.html";
   await page.waitForFunction(() => /匯入失敗/.test(document.getElementById("rTplStatus").textContent));
   assert.match(await page.textContent("#rTplStatus"), /仍使用原本的範本/);
 
-  step("重新整理 → 密碼錯誤 → 正確解鎖，不需重新匯入");
+  step("重新整理 → 直接進入，不需重新匯入");
   await page.reload();
-  await page.waitForSelector("#unlockForm:not([hidden])");
-  await page.fill("#unlockPw", "wrong-pw"); await page.click("#unlockBtn");
-  await page.waitForFunction(() => /不正確/.test(document.getElementById("unlockStatus").textContent));
-  assert.equal(await page.isHidden("#app"), true);
-  await page.fill("#unlockPw", "abc123"); await page.click("#unlockBtn");
   await page.waitForSelector("#app:not([hidden])");
   assert.equal(await page.locator(".cohort-btn").count(), 2);
   assert.match(await page.textContent("#pTplStatus"), /✓/);
@@ -152,11 +144,25 @@ const URL = process.env.APP_URL || "http://localhost:8765/index.html";
   const [dl2] = await Promise.all([page.waitForEvent("download"), page.click("#rExport")]);
   const rFile = path.join(OUT, "reward.xlsx"); await dl2.saveAs(rFile);
 
-  step("鎖定 → 解鎖後紀錄仍在");
+  step("設定開啟密碼");
+  await page.click("#tabBtn-settings");
+  assert.equal(await page.isVisible("#pwNoneBox"), true);
+  await page.click("details:has(#pwSetForm) summary");
+  await page.fill("#pwSet1", "abc123"); await page.fill("#pwSet2", "abc124");
+  await page.click("#pwSetForm button[type=submit]");
+  assert.match(await page.textContent("#pwSetStatus"), /不一致/);
+  await page.fill("#pwSet2", "abc123"); await page.click("#pwSetForm button[type=submit]");
+  await page.waitForSelector("#lockBtn:not([hidden])");
+  assert.equal(await page.isVisible("#pwSetBox"), true);
+
+  step("鎖定 → 密碼錯誤 → 正確解鎖，紀錄仍在");
   await page.click("#lockBtn");
   await page.waitForSelector("#unlockForm:not([hidden])");
   assert.equal(await page.isHidden("#app"), true);
   assert.equal(await page.evaluate(() => document.body.innerText.includes("李小婷")), false);
+  await page.fill("#unlockPw", "wrong-pw"); await page.click("#unlockBtn");
+  await page.waitForFunction(() => /不正確/.test(document.getElementById("unlockStatus").textContent));
+  assert.equal(await page.isHidden("#app"), true);
   await page.fill("#unlockPw", "abc123"); await page.click("#unlockBtn");
   await page.waitForSelector("#app:not([hidden])");
   assert.equal(await page.locator("#pRecords tr").count(), 3);
@@ -196,10 +202,21 @@ const URL = process.env.APP_URL || "http://localhost:8765/index.html";
   await page.click("#tabBtn-reward");
   await page.screenshot({path: path.join(OUT, "reward.png"), fullPage: true});
 
+  step("取消密碼 → 重新開啟直接進入");
+  await page.click("#tabBtn-settings");
+  await page.click("details:has(#pwRemoveForm) summary");
+  await page.fill("#pwRemoveOld", "wrong-pw"); await page.click("#pwRemoveForm button[type=submit]");
+  await page.waitForFunction(() => /不正確/.test(document.getElementById("pwRemoveStatus").textContent));
+  await page.fill("#pwRemoveOld", "newpass9"); await page.click("#pwRemoveForm button[type=submit]");
+  await page.waitForSelector("#lockBtn[hidden]", {state: "attached"});
+  await page.reload();
+  await page.waitForSelector("#app:not([hidden])");
+  assert.equal(await page.locator("#rBody tr").count(), 3);
+
   step("清除本機全部資料");
   await page.click("#tabBtn-settings");
   await page.click("#wipeAll");
-  await page.waitForSelector("#setupForm:not([hidden])");
+  await page.waitForFunction(() => !document.getElementById("app").hidden && document.querySelectorAll(".cohort-card").length === 0);
 
   assert.deepEqual(external, [], "不應有外部連線：" + external.join(", "));
   assert.deepEqual(errors, [], "Console 錯誤：" + errors.join("\n"));
