@@ -249,7 +249,7 @@
         const box = tr.querySelector("td.cell-select input[type=checkbox]"); if (box) box.checked = on;
         tr.classList.toggle("selected-record", on);
       },
-      done: () => rUpdateSelection()
+      done: () => { if (rInline && rInline.targets.length > 1) rCancelInline(); rUpdateSelection(); }
     }
   };
   const rangeAnchor = {p: null, r: null};
@@ -396,7 +396,15 @@
       const tr = $("pRecords").querySelector('tr[data-index="' + pRecords.indexOf(first) + '"]');
       if (tr) tr.scrollIntoView({block: "center", behavior: "smooth"});
     } else if (settings.tab === "reward") {
-      rOpenEditor(Array.from(rSelectedRows).sort((a, b) => a - b));
+      let first = Array.from(rSelectedRows).sort((a, b) => a - b).find(i => rRecords[i] && matchesFilter("r", rRecords[i]));
+      if (first === undefined) {
+        Object.assign(filters.r, {cohort: "", text: "", group: ""}); $("rFilterCohort").value = ""; $("rFilterText").value = "";
+        applyFilter("r"); first = Array.from(rSelectedRows).sort((a, b) => a - b)[0];
+      }
+      if (first === undefined) return;
+      rStartInline(first);
+      const tr = $("rBody").querySelector('tr[data-index="' + first + '"]');
+      if (tr) tr.scrollIntoView({block: "center", behavior: "smooth"});
     }
   });
   $("selBarDelete").addEventListener("click", () => {
@@ -1111,7 +1119,6 @@
 
   const rT = () => (rTpl ? rTpl.parsed : null);
   const rSelectedRows = new Set();
-  let rEditingRows = [];
 
   // 按鈕一律可按；缺名冊或範本時，按下後會以紅字說明缺什麼（避免重新開啟後按鈕停用卻不知原因）
   function rRefreshAddState() { $("rAdd").disabled = false; }
@@ -1205,6 +1212,7 @@
       duplicates.map(s => s.name + "（" + s.cohort + "，學號 " + s.school + "）：共 " + s.count + " 筆，重複 " + (s.count - 1) + " 次。").join("\n") : "";
   }
   function rRender() {
+    rInline = null; // 重新繪製時放棄未儲存的列內編輯
     for (const i of Array.from(rSelectedRows)) if (i >= rRecords.length) rSelectedRows.delete(i);
     $("rBody").replaceChildren();
     rRecords.forEach((record, index) => {
@@ -1213,7 +1221,13 @@
       label.className = "check-label"; checkbox.type = "checkbox";
       checkbox.checked = rSelectedRows.has(index);
       checkbox.setAttribute("aria-label", "選取 " + record.name + "（" + record.school + "）");
-      checkbox.addEventListener("change", () => { if (checkbox.checked) rSelectedRows.add(index); else rSelectedRows.delete(index); row.classList.toggle("selected-record", checkbox.checked); rUpdateSelection(); });
+      checkbox.addEventListener("change", () => {
+        if (rInline && rInline.targets.length > 1) { rCancelInline(); }
+        if (checkbox.checked) rSelectedRows.add(index); else rSelectedRows.delete(index);
+        const current = $("rBody").querySelector('tr[data-index="' + index + '"]');
+        if (current) current.classList.toggle("selected-record", rSelectedRows.has(index));
+        rUpdateSelection();
+      });
       label.append(checkbox); selectCell.className = "cell-select"; selectCell.append(label); row.append(selectCell);
       row.append(summaryCell("r", record, row));
       row.classList.toggle("selected-record", checkbox.checked);
@@ -1222,8 +1236,7 @@
       const edit = document.createElement("button"), remove = document.createElement("button");
       edit.type = "button"; edit.textContent = "編輯"; edit.disabled = !rTpl; edit.dataset.editIndex = index;
       edit.addEventListener("click", () => {
-        if (rSelectedRows.size > 1 && rSelectedRows.has(index)) rOpenEditor(Array.from(rSelectedRows).sort((a, b) => a - b));
-        else rOpenEditor([index]);
+        rStartInline(index);
       });
       remove.type = "button"; remove.className = "danger"; remove.textContent = "刪除"; remove.dataset.deleteIndex = index;
       remove.addEventListener("click", () => {
@@ -1261,7 +1274,7 @@
     if (!targets.size) return;
     const hidden = Array.from(targets).filter(i => rRecords[i] && !matchesFilter("r", rRecords[i])).length;
     if (!confirm("確定刪除勾選的 " + targets.size + " 筆獎懲紀錄？" + (hidden ? "\n（其中 " + hidden + " 筆目前被篩選隱藏）" : "") + "\n未勾選的紀錄會保留。")) return;
-    if ($("rEditor").open) $("rEditor").close();
+    rCancelInline(false);
     rRecords = rRecords.filter((r, i) => !targets.has(i));
     rSelectedRows.clear();
     rRender(); saveDrafts();
@@ -1283,87 +1296,113 @@
     } catch (error) { rReport("匯出失敗：" + error.message, "error"); }
   });
 
-  // ── 獎懲編輯視窗 ──
-  function rSyncEditor() {
-    const t = rT(), applyRule = $("rEditApplyRule").checked;
-    const relevant = t.rules.filter(rule => rule.article === $("rEditArticle").value && rule.clause === $("rEditClause").value);
-    $("rEditArticle").disabled = !applyRule;
-    $("rEditClause").disabled = !applyRule || !$("rEditArticle").value;
-    $("rEditItem").disabled = !applyRule || !relevant.some(rule => rule.item);
-    $("rEditReason").disabled = !$("rEditApplyReason").checked;
-    $("rEditAdjustReason").disabled = !$("rEditApplyAdjust").checked;
-    $("rEditAdjustAmount").disabled = !$("rEditApplyAdjust").checked || !$("rEditAdjustReason").value;
+  // ── 獎懲：在預覽列上直接編輯 ──
+  /* 條、款、目連動；換條款目時自動帶入範本事由與固定額度。
+     勾選多筆時從勾選列開始編輯：只把「有改動的欄位」套用到全部勾選紀錄，沒改的欄位保留各筆原值。 */
+  let rInline = null; // {anchor, targets, wasExpanded, reasonDirty}
+  function rCancelInline(rerender = true) {
+    if (!rInline) return;
+    const r = rRecords[rInline.anchor];
+    if (r && !rInline.wasExpanded) expanded.r.delete(r);
+    rInline = null;
+    if (rerender) rRender();
   }
-  function rFillEditorReason() {
+  function rStartInline(index) {
+    if (!rTpl) { alert("請先到「名冊與設定」匯入獎懲範本才能編輯。"); return; }
+    if (rInline) rCancelInline();
+    const r = rRecords[index]; if (!r) return;
     const t = rT();
-    const rule = t.rules.find(rule => rule.article === $("rEditArticle").value && rule.clause === $("rEditClause").value && rule.item === $("rEditItem").value);
-    $("rEditReason").value = rule ? rule.reason : "";
-    $("rEditAmount").value = rule ? t.defaultAmounts[rule.article] || "" : "";
-  }
-  function rFillEditItems(value) {
-    const relevant = rT().rules.filter(rule => rule.article === $("rEditArticle").value && rule.clause === $("rEditClause").value);
-    const items = itemChoices(relevant);
-    fillLabeled($("rEditItem"), items, items.length ? "請選擇目" : relevant.length ? "無目（不需選擇）" : "請先選擇款");
-    $("rEditItem").value = value || "";
-    rFillEditorReason(); rSyncEditor();
-  }
-  function rFillEditClauses(clause, item) {
-    fillLabeled($("rEditClause"), $("rEditArticle").value ? clauseChoices(rT(), $("rEditArticle").value) : [], "請選擇款");
-    $("rEditClause").value = clause || "";
-    rFillEditItems(item);
-  }
-  function rOpenEditor(indexes) {
-    if (!rRecords.length || !indexes.length || !rTpl) return;
-    const t = rT();
-    rEditingRows = indexes.slice();
-    const records = indexes.map(i => rRecords[i]);
-    const common = field => records.every(r => r[field] === records[0][field]) ? records[0][field] : "";
-    const single = indexes.length === 1;
-    $("rEditTitle").textContent = "編輯 " + indexes.length + " 筆紀錄";
-    $("rEditSummary").textContent = single ? records[0].name + "（" + records[0].cohort + "，學號 " + records[0].school + "）" :
-      records.slice(0, 5).map(r => r.name).join("、") + (records.length > 5 ? "等 " + records.length + " 位學生" : "");
-    ["rEditApplyRule", "rEditApplyReason", "rEditApplyAdjust"].forEach(id => { $(id).checked = single; });
-    fillLabeled($("rEditArticle"), articleChoices(t), "請選擇條");
-    $("rEditArticle").value = common("article");
-    fillOptions($("rEditAdjustReason"), t.adjustmentOptions, "無（清除）");
-    $("rEditAdjustReason").value = common("adjustReason");
-    fillOptions($("rEditAdjustAmount"), t.amountOptions, "無（選填）");
-    $("rEditAdjustAmount").value = common("adjustAmount");
-    rFillEditClauses(common("clause"), common("item"));
-    $("rEditReason").value = common("reason");
-    $("rEditAmount").value = common("amount");
-    $("rEditStatus").textContent = ""; $("rEditStatus").className = "";
-    $("rEditor").showModal();
-  }
+    const targets = rSelectedRows.size > 1 && rSelectedRows.has(index) ? Array.from(rSelectedRows).sort((a, b) => a - b) : [index];
+    rInline = {anchor: index, targets, wasExpanded: expanded.r.has(r), reasonDirty: false};
+    const rowOf = i => $("rBody").querySelector('tr[data-index="' + i + '"]');
+    const tr = rowOf(index); if (!tr) return;
+    tr.classList.add("inline-editing", "expanded"); expanded.r.add(r);
+    targets.forEach(i => { const row = rowOf(i); if (row) row.classList.add("edit-target"); });
+    const cell = label => tr.querySelector('td[data-label="' + label + '"]');
+    const select = (cls, label) => { const el = document.createElement("select"); el.className = "inline-field " + cls; el.setAttribute("aria-label", label); return el; };
+    const article = select("inline-article", "條"), clause = select("inline-clause", "款"), item = select("inline-item", "目");
+    const adjReason = select("inline-adjreason", "加重減輕事由"), adjAmount = select("inline-adjamount", "加重減輕額度");
+    const reason = document.createElement("textarea"); reason.className = "inline-field inline-rreason"; reason.value = r.reason || ""; reason.setAttribute("aria-label", "獎懲事由");
+    const amount = document.createElement("span"); amount.className = "inline-amount"; amount.textContent = r.amount || "";
+    const error = document.createElement("div"); error.className = "inline-error"; error.setAttribute("role", "alert");
 
-  $("rEditArticle").addEventListener("change", () => rFillEditClauses());
-  $("rEditClause").addEventListener("change", () => rFillEditItems());
-  $("rEditItem").addEventListener("change", () => { rFillEditorReason(); rSyncEditor(); });
-  ["rEditApplyRule", "rEditApplyReason", "rEditApplyAdjust"].forEach(id => $(id).addEventListener("change", rSyncEditor));
-  $("rEditAdjustReason").addEventListener("change", () => { if (!$("rEditAdjustReason").value) $("rEditAdjustAmount").value = ""; rSyncEditor(); });
-  $("rCancelEdit").addEventListener("click", () => $("rEditor").close());
-  $("rEditor").addEventListener("close", () => { rEditingRows = []; });
-  $("rEditForm").addEventListener("submit", event => {
-    event.preventDefault();
-    try {
-      const patch = {};
-      if ($("rEditApplyRule").checked) Object.assign(patch, {article: $("rEditArticle").value, clause: $("rEditClause").value, item: $("rEditItem").value});
-      if ($("rEditApplyReason").checked) patch.reason = $("rEditReason").value;
-      if ($("rEditApplyAdjust").checked) {
-        patch.adjustReason = $("rEditAdjustReason").value;
-        patch.adjustAmount = patch.adjustReason ? $("rEditAdjustAmount").value : "";
-      }
-      const count = rEditingRows.length, editedRows = rEditingRows.slice();
-      rRecords = core.editRewardRecords(rRecords, rEditingRows, rT(), patch);
-      rSelectedRows.clear(); // 儲存後取消勾選
-      justEdited.r = new Set(editedRows.map(i => rRecords[i]));
-      $("rEditor").close();
-      rRender(); saveDrafts();
-      rReport("已更新 " + count + " 筆紀錄（以淺藍色標示）；目前共 " + rRecords.length + " 筆。", "ok");
-    } catch (error) {
-      $("rEditStatus").textContent = error.message; $("rEditStatus").className = "err";
+    const fillItems = keep => {
+      const relevant = t.rules.filter(x => x.article === article.value && x.clause === clause.value);
+      const items = itemChoices(relevant);
+      fillLabeled(item, items, items.length ? "請選擇目" : relevant.length ? "無目" : "請先選擇款");
+      item.disabled = !items.length;
+      if (keep) item.value = r.item || "";
+    };
+    const fillClauses = keep => {
+      fillLabeled(clause, article.value ? clauseChoices(t, article.value) : [], article.value ? "請選擇款" : "請先選擇條");
+      if (keep) clause.value = r.clause || "";
+      fillItems(keep);
+    };
+    const syncRule = () => {
+      const rule = t.rules.find(x => x.article === article.value && x.clause === clause.value && x.item === item.value);
+      amount.textContent = rule ? t.defaultAmounts[rule.article] || "" : "";
+      if (!rInline.reasonDirty) reason.value = rule ? rule.reason : "";
+    };
+    fillLabeled(article, articleChoices(t), "請選擇條"); article.value = r.article;
+    fillClauses(true);
+    article.addEventListener("change", () => { fillClauses(false); syncRule(); });
+    clause.addEventListener("change", () => { fillItems(false); syncRule(); });
+    item.addEventListener("change", syncRule);
+    reason.addEventListener("input", () => { rInline.reasonDirty = true; });
+    fillOptions(adjReason, t.adjustmentOptions, "無"); adjReason.value = r.adjustReason || "";
+    fillOptions(adjAmount, t.amountOptions, "無"); adjAmount.value = r.adjustAmount || "";
+    adjAmount.disabled = !adjReason.value;
+    adjReason.addEventListener("change", () => { adjAmount.disabled = !adjReason.value; if (!adjReason.value) adjAmount.value = ""; });
+
+    cell("條").replaceChildren(article);
+    cell("款").replaceChildren(clause);
+    cell("目").replaceChildren(item);
+    cell("獎懲事由").replaceChildren(reason);
+    if (targets.length > 1) {
+      const hint = document.createElement("div"); hint.className = "inline-hint";
+      hint.textContent = "改動的欄位會套用到勾選的 " + targets.length + " 筆（虛線框）；沒改的欄位保留各筆原值。";
+      cell("獎懲事由").append(hint);
     }
-  });
+    cell("獎懲事由").append(error);
+    cell("額度").replaceChildren(amount);
+    cell("加重減輕事由").replaceChildren(adjReason);
+    cell("加重減輕額度").replaceChildren(adjAmount);
+
+    const actions = tr.querySelector("td.cell-actions");
+    const save = document.createElement("button"), cancel = document.createElement("button");
+    save.type = "button"; save.className = "inline-save"; save.textContent = "儲存";
+    cancel.type = "button"; cancel.className = "secondary inline-cancel"; cancel.textContent = "取消";
+    actions.replaceChildren(save, cancel);
+    cancel.addEventListener("click", () => rCancelInline());
+    save.addEventListener("click", () => {
+      if (!rInline) return;
+      const o = rRecords[rInline.anchor], patch = {};
+      if (article.value !== o.article || clause.value !== o.clause || (item.value || "") !== (o.item || "")) {
+        Object.assign(patch, {article: article.value, clause: clause.value, item: item.value});
+      }
+      if (rInline.reasonDirty && reason.value.trim() !== (o.reason || "").trim()) patch.reason = reason.value;
+      if ((adjReason.value || "") !== (o.adjustReason || "") || (adjAmount.value || "") !== (o.adjustAmount || "")) {
+        patch.adjustReason = adjReason.value;
+        patch.adjustAmount = adjReason.value ? adjAmount.value : "";
+      }
+      if (!Object.keys(patch).length) { rCancelInline(); return; } // 沒有改動
+      try {
+        const indexes = rInline.targets.filter(i => rRecords[i]);
+        rRecords = core.editRewardRecords(rRecords, indexes, rT(), patch);
+        rSelectedRows.clear(); // 儲存後取消勾選
+        justEdited.r = new Set(indexes.map(i => rRecords[i]));
+        rInline = null;
+        rRender(); saveDrafts();
+        rReport("已更新 " + indexes.length + " 筆紀錄（以淺藍色標示）；目前共 " + rRecords.length + " 筆。", "ok");
+      } catch (err) { error.textContent = err.message; }
+    });
+    tr.addEventListener("keydown", event => {
+      if (!rInline) return;
+      if (event.key === "Escape") { event.preventDefault(); rCancelInline(); }
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); save.click(); }
+    });
+    article.focus();
+  }
 
   window.addEventListener("pagehide", () => { if (!$("app").hidden) flushDrafts(); });
   boot();

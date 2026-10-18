@@ -108,7 +108,7 @@ let rDupBefore = 0;
 
   if (!process.env.MOBILE) {
     step("電腦：勾選、操作在最左邊，編輯在刪除左側並排");
-    for (const width of [1280, 1024, 901]) {
+    for (const width of [1440, 1280, 1024]) {
       await page.setViewportSize({width, height: 900});
       const wrap = await page.locator("#tab-points .tablewrap").boundingBox();
       const row = page.locator("#pRecords > tr").first();
@@ -313,7 +313,7 @@ let rDupBefore = 0;
   assert.match(rRows[0], /第45期[\s\S]*李小婷[\s\S]*測試事由丙。（文書公差）/);
   assert.match(rRows[2], /第44期[\s\S]*林小華[\s\S]*申誡一次/);
   assert.match(await page.textContent("#rDup"), /李小婷（第45期/);
-  step("獎懲：編輯視窗");
+  step("獎懲：列上直接編輯");
   if (!process.env.MOBILE) {
     const wrapR = await page.locator("#tab-reward .tablewrap").boundingBox();
     const rowR = page.locator("#rBody > tr").first();
@@ -327,15 +327,49 @@ let rDupBefore = 0;
   await page.check("#rBody tr:nth-child(2) input[type=checkbox]");
   assert.match(await page.textContent("#rSelected"), /已勾選 1 \//);
   await page.click("#rBody tr:nth-child(2) button:has-text('編輯')");
-  assert.match(await page.textContent("#rEditClause"), /第17款｜（分 2 目/);
-  assert.match(await page.textContent("#rEditItem"), /第2目｜測試事由丙。/);
-  await page.fill("#rEditReason", "改過的事由");
-  await page.click("#rEditForm button[type=submit]");
-  await page.waitForFunction(() => !document.getElementById("rEditor").open);
+  // 不跳出視窗，直接在列上編輯
+  assert.equal(await page.locator("dialog#rEditor").count(), 0);
+  const rRow2 = "#rBody > tr:nth-child(2)";
+  assert.equal(await page.locator(rRow2 + ".inline-editing").count(), 1);
+  assert.match(await page.textContent(rRow2 + " select.inline-clause"), /第17款｜（分 2 目/);
+  assert.match(await page.textContent(rRow2 + " select.inline-item"), /第2目｜測試事由丙。/);
+  if (!process.env.MOBILE) {
+    const ovR = await page.$eval("#tab-reward .tablewrap", el => el.scrollWidth - el.clientWidth);
+    assert.ok(ovR <= 0, "獎懲編輯中表格需要左右捲動（多 " + ovR + "px）");
+  }
+  await page.fill(rRow2 + " textarea.inline-rreason", "改過的事由");
+  await page.click(rRow2 + " button.inline-save");
+  assert.equal(await page.locator("#rBody > tr.inline-editing").count(), 0);
   assert.match(await page.textContent("#rSelected"), /已勾選 0 \//);
   assert.equal(await page.locator("#rBody > tr.just-edited").count(), 1);
   assert.equal(await page.getAttribute("#rBody > tr:nth-child(2)", "class").then(c => /just-edited/.test(c)), true);
-  assert.match(await page.$eval("#rBody tr:nth-child(2)", tr => tr.innerText), /改過的事由/);
+  assert.match(await page.$eval("#rBody tr:nth-child(2)", tr => tr.textContent), /改過的事由/);
+
+  step("獎懲：列上改條款目（自動帶入事由與額度）、清除加重減輕、取消");
+  const rRow3 = "#rBody > tr:nth-child(3)";
+  const openR = async sel => {
+    if (process.env.MOBILE && !/expanded/.test(await page.getAttribute(sel, "class") || "")) await page.click(sel + " .cell-summary");
+    await page.click(sel + " button[data-edit-index]");
+  };
+  await openR(rRow3);
+  await page.selectOption(rRow3 + " select.inline-adjreason", "");
+  assert.equal(await page.isDisabled(rRow3 + " select.inline-adjamount"), true);
+  await page.selectOption(rRow3 + " select.inline-article", "第20條");
+  await page.click(rRow3 + " button.inline-save");
+  assert.match(await page.textContent(rRow3 + " .inline-error"), /請依序選擇獎懲依據/);
+  await page.selectOption(rRow3 + " select.inline-clause", "第17款");
+  await page.selectOption(rRow3 + " select.inline-item", "第1目");
+  assert.equal(await page.inputValue(rRow3 + " textarea.inline-rreason"), "測試事由乙。");
+  assert.equal(await page.textContent(rRow3 + " .inline-amount"), "小過一次");
+  await page.click(rRow3 + " button.inline-save");
+  const row3Text = await page.$eval(rRow3, tr => Array.from(tr.querySelectorAll("td[data-label]")).map(td => td.dataset.label + "=" + td.textContent).join("|"));
+  assert.match(row3Text, /條=第20條\|款=第17款\|目=第1目\|獎懲事由=測試事由乙。\|額度=小過一次\|加重減輕事由=\|加重減輕額度=/);
+  // Esc 取消，不會改動
+  await openR(rRow3);
+  await page.selectOption(rRow3 + " select.inline-article", "第19條");
+  await page.press(rRow3 + " select.inline-article", "Escape");
+  assert.equal(await page.locator("#rBody > tr.inline-editing").count(), 0);
+  assert.equal(await page.textContent(rRow3 + " td[data-label='條']"), "第20條");
   const [dl2] = await Promise.all([page.waitForEvent("download"), page.click("#rExport")]);
   step("獎懲：勾選多筆一次刪除");
   rDupBefore = await page.locator("#rBody > tr").count();
