@@ -74,7 +74,9 @@
   function parseTokens(value) {
     const tokens = [];
     for (const token of clean(value).normalize("NFKC").split(/[\s,、;]+/).filter(Boolean)) {
-      const range = token.match(/^(\d{1,3})[-–~～](\d{1,3})$/);
+      // 女生隊號範圍只接受「三位數-三位數」（002-010）或用波浪號（2~10）。
+      // 「5-7」「6-2」這類寫法通常是寢室號碼，不可當成範圍，否則會誤加學生。
+      const range = token.match(/^(\d{3})[-–](\d{3})$/) || token.match(/^(\d{1,3})[~～](\d{1,3})$/);
       if (!range) { tokens.push(token); continue; }
       const first = Number(range[1]), last = Number(range[2]);
       if (first < 1 || last < first || last > 999) throw new Error("女生隊號範圍不正確：" + token);
@@ -99,7 +101,11 @@
 
   function parseStudentInputs(value, roster) {
     const inputs = [], names = new Set(roster.map(student => normalize(student.name)));
-    const add = (token, note) => parseTokens(token).forEach(token => inputs.push({token, note}));
+    const add = (token, note) => {
+      // 單一寫法錯誤只略過該項並提示，不讓整批輸入失敗
+      try { parseTokens(token).forEach(token => inputs.push({token, note})); }
+      catch (error) { inputs.push({token, note, error: error.message}); }
+    };
     for (const line of clean(value).split(/[\r\n]+/)) {
       let note = "";
       for (const group of line.split(/[,，、;；]+/)) {
@@ -144,7 +150,12 @@
   function resolveStudents(value, roster, others) {
     const inputs = parseStudentInputs(value, roster);
     const tokens = inputs.map(input => input.token), matches = new Map(), errors = [], students = [], entries = [];
-    for (const {token, note} of inputs) {
+    for (const {token, note, error} of inputs) {
+      if (error) { errors.push({token, message: error + "，已略過"}); continue; }
+      if (/^\d{1,2}[-–]\d{1,2}$/.test(token.normalize("NFKC"))) {
+        errors.push({token, message: "看起來是寢室號碼，不是學生，已略過（女生隊號範圍請寫成 002-010）"});
+        continue;
+      }
       const match = matchStudent(token, roster);
       if (match.error) {
         let message = match.error;

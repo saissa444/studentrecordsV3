@@ -205,7 +205,7 @@ dialog .actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0;marg
       <label for="pIds">學生查詢（女生隊號、建制隊號、姓名可混合輸入）</label>
       <textarea id="pIds" style="min-height:150px" placeholder="例如：002、440000、王小明、011（均為示意）&#10;也可輸入：內務櫃未確實上鎖 002 011"></textarea>
       <div id="pCheck" class="check-panel" aria-live="polite">尚未輸入學生資料</div>
-      <p class="note">可用頓號、逗號、空白或換行分隔；女生隊號可輸入 2 或 002，也可輸入範圍 002-010。同一批次相同學生只登錄一次。學生前可加註記（例如「內務櫃未確實上鎖 002 011」或「文書公差：002」），註記會以括號附加在該生說明後方。</p>
+      <p class="note">可用頓號、逗號、空白或換行分隔；女生隊號可輸入 2 或 002，也可輸入範圍 002-010（須寫三位數）。同一批次相同學生只登錄一次。學生前可加註記（例如「內務櫃未確實上鎖 002 011」或「文書公差：002」），註記會以括號附加在該生說明後方。</p>
       <div class="grid">
         <div><label for="pKind">加扣分類型</label><select id="pKind"><option>加分</option><option>扣分</option></select></div>
         <div><label for="pScore">分數（0.1 至 0.8，每次 0.1 分）</label><select id="pScore"></select></div>
@@ -276,7 +276,7 @@ dialog .actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0;marg
       <label for="rIds">輸入學生（可多筆）</label>
       <textarea id="rIds" placeholder="例如：002、449999、王小明（可混合輸入）&#10;也可輸入：文書公差：002"></textarea>
       <div id="rCheck" class="check-panel" aria-live="polite">尚未輸入學生資料</div>
-      <p class="note">支援女生隊號、建制隊號、姓名混合輸入，可用換行、逗號、頓號或空格分隔，也可輸入範圍（例如 002-010）。同批或不同批次的重複學生均會新增，預覽下方會以紅字顯示重複次數。學生前可加註記（例如「文書公差002」「文書公差：002」），批次新增時會在該筆事由後加上「（文書公差）」。</p>
+      <p class="note">支援女生隊號、建制隊號、姓名混合輸入，可用換行、逗號、頓號或空格分隔，也可輸入範圍（例如 002-010，須寫三位數）。同批或不同批次的重複學生均會新增，預覽下方會以紅字顯示重複次數。學生前可加註記（例如「文書公差002」「文書公差：002」），批次新增時會在該筆事由後加上「（文書公差）」。</p>
     </section>
     <section>
       <h2>② 設定共同獎懲內容</h2>
@@ -367,7 +367,7 @@ dialog .actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0;marg
       <p class="note">資料只存在「這台裝置的這個瀏覽器」。換電腦、換瀏覽器或清除瀏覽器網站資料後，需要重新匯入。iPhone 建議用 Safari「加入主畫面」後從主畫面開啟，資料比較不會被系統清掉。</p>
       <button id="wipeAll" type="button" class="solid-danger">清除本機全部資料</button>
     </section>
-    <p class="note" style="text-align:center">版本 2026.10.18d</p>
+    <p class="note" style="text-align:center">版本 2026.10.18e</p>
   </div>
   </main>
 </div>
@@ -415,9 +415,9 @@ dialog .actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0;marg
 })();
 </script>
 <script defer src="./vendor/xlsx.full.min.js?v=0.20.3"></script>
-<script defer src="./js/core.js?v=20261018d"></script>
-<script defer src="./js/store.js?v=20261018d"></script>
-<script defer src="./js/app.js?v=20261018d"></script>
+<script defer src="./js/core.js?v=20261018e"></script>
+<script defer src="./js/store.js?v=20261018e"></script>
+<script defer src="./js/app.js?v=20261018e"></script>
 <script>if ("serviceWorker" in navigator && location.protocol === "https:") window.addEventListener("load", function () { navigator.serviceWorker.register("./sw.js").catch(function () {}); });</script>
 </body>
 </html>
